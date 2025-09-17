@@ -1,0 +1,136 @@
+# === CONFIGURAÇÃO DO AGENTE IA ===
+# Detector de Anomalias Inteligente
+# Desenvolvido para universidades brasileiras
+
+# === CONFIGURAÇÕES GERAIS ===
+sistema:
+  nome: "Agente IA - Detector de Anomalias"
+  versao: "1.0.0"
+  idioma: "pt-BR"
+  debug: true
+  log_level: "INFO"
+
+# === COLETA DE LOGS (FASE 1 + EXPANSÃO INDEPENDENTE) ===
+coleta:
+  # Fontes locais (arquivos)
+  fontes_locais:
+    - caminho: "../logs-analizes/"
+      tipo: "arquivo"
+      formato: "txt"
+      encoding: "utf-8"
+      ativo: true
+  
+  # Coleta do sistema operacional
+  sistema_operacional:
+    ativo: true
+    linux:
+      journalctl: true
+      auth_logs: ["/var/log/auth.log", "/var/log/secure"]
+      system_logs: ["/var/log/syslog", "/var/log/messages"]
+    windows:
+      event_logs: ["Security", "System", "Application"]
+      max_entries: 100
+    macos:
+      system_log: true
+      last_hours: 1
+  
+  # Servidor Syslog para coleta via rede
+  syslog_server:
+    ativo: true
+    porta: 5140  # Porta alternativa (514 requer root)
+    bind_address: "0.0.0.0"
+  
+  # Coleta remota via SSH
+  ssh_remoto:
+    ativo: false  # Desabilitado por padrão por segurança
+    hosts: []
+    # Exemplo de configuração:
+    # hosts:
+    #   - hostname: "servidor1.exemplo.com"
+    #     username: "admin"
+    #     password: "senha_secreta"  # OU
+    #     key_file: "/path/to/private_key"
+    #     log_paths: ["/var/log/auth.log", "/var/log/nginx/access.log"]
+  
+  # Monitoramento
+  monitoramento:
+    intervalo_segundos: 10
+    tamanho_buffer: 1000
+    auto_reload: true
+    coleta_automatica:
+      sistema: true
+      intervalo_minutos: 5
+
+# === DETECÇÃO DE ANOMALIAS ===
+deteccao:
+  # Fase 1 - Regras Básicas
+  regras_basicas:
+    tentativas_login_falhadas: 5
+    janela_tempo_minutos: 5
+    ips_suspeitos_threshold: 10
+    
+  # Fase 2 - IA Híbrida Adaptativa
+  ia_hibrida:
+    algoritmos:
+      - "isolation_forest"
+      - "autoencoder"
+      - "one_class_svm"
+      - "dbscan"
+    
+    auto_selecao: true
+    retreinamento_automatico: true
+    intervalo_retreinamento_horas: 24
+    threshold_confianca: 0.85
+
+# === SISTEMA DE ALERTAS ===
+alertas:
+  email:
+    servidor_smtp: "smtp.gmail.com"
+    porta: 587
+    usuario: "chalenge.agenteia@gmail.com"
+    senha_app: "bjtkykpjhyojinmp"  # Senha de aplicação do Gmail
+    destinatario: "chalenge.agenteia@gmail.com"
+    assunto_prefixo: "[AGENTE IA] ANOMALIA DETECTADA"
+  
+  niveis:
+    baixo: "INFO"
+    medio: "WARNING" 
+    alto: "CRITICAL"
+    
+  frequencia:
+    imediata: true
+    resumo_diario: true
+    relatorio_semanal: true
+
+# === ARMAZENAMENTO ===
+banco_dados:
+  tipo: "sqlite"
+  caminho: "data/agente_ia.db"
+  backup_automatico: true
+  retencao_dias: 90
+
+# === API E FRONTEND ===
+api:
+  host: "localhost"
+  porta: 5000
+  cors_enabled: true
+  websocket_enabled: true
+
+frontend:
+  tema: "escuro"
+  cores:
+    fundo_principal: "#1a1a1a"
+    fundo_secundario: "#2d2d2d"
+    botoes: "#4dd0e1"  # Verde água
+    texto_principal: "#ffffff"
+    texto_secundario: "#b0b0b0"
+    sucesso: "#4caf50"
+    aviso: "#ff9800"
+    erro: "#f44336"
+
+# === PERFORMANCE ===
+performance:
+  max_workers: 4
+  cache_size_mb: 100
+  timeout_segundos: 30
+  batch_size: 1000 

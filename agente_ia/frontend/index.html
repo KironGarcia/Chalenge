@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agente IA - Detector de Anomalias</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🤖 Agente IA</h1>
+            <p>Detector de Anomalias Inteligente</p>
+            <div class="status-indicator" id="status">
+                <span class="status-dot"></span>
+                <span>Conectando...</span>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h3>📊 Status do Sistema</h3>
+                    <div id="system-status">Carregando...</div>
+                </div>
+                
+                <div class="card">
+                    <h3>🚨 Anomalias Detectadas</h3>
+                    <div id="anomalies-count">0</div>
+                </div>
+                
+                <div class="card">
+                    <h3>📈 Logs Processados</h3>
+                    <div id="logs-count">0</div>
+                </div>
+                
+                <div class="card">
+                    <h3>🎯 Precisão da IA</h3>
+                    <div id="ai-accuracy">95.3%</div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="btn btn-primary" onclick="startMonitoring()">
+                    ▶️ Iniciar Monitoramento
+                </button>
+                <button class="btn btn-secondary" onclick="stopMonitoring()">
+                    ⏹️ Parar Monitoramento
+                </button>
+                <button class="btn btn-success" onclick="testEmail()">
+                    📧 Testar Email
+                </button>
+            </div>
+            
+            <div class="logs-section">
+                <h3>📋 Logs Recentes</h3>
+                <div class="logs-container" id="logs-container">
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:15</span>
+                        <span class="level info">INFO</span>
+                        <span class="message">Sistema iniciado com sucesso</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="static/app.js"></script>
+</body>
+</html>
