@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # ===================================================================
-# AGENTE IA - SCRIPT DE INICIALIZAÇÃO AUTOMÁTICA
+# AGENTE IA - SCRIPT DE INICIALIZAÇÃO CONTROLADA
 # ===================================================================
 # Sistema profissional de detecção de anomalias
 # Desenvolvido para universidades brasileiras
+# VERSÃO MELHORADA: Controle total de processos
 # ===================================================================
 
 set -e  # Para execução em caso de erro
@@ -29,6 +30,78 @@ FRONTEND_PORT=3000
 EMAIL_USER="chalenge.agenteia@gmail.com"
 EMAIL_APP_PASSWORD="bjtkykpjhyojinmp"
 
+# Variáveis Wazuh (podem ser sobrescritas via ambiente externo)
+WAZUH_ENABLED=${WAZUH_ENABLED:-true}
+WAZUH_SYSLOG_HOST=${WAZUH_SYSLOG_HOST:-localhost}
+WAZUH_SYSLOG_PORT=${WAZUH_SYSLOG_PORT:-514}
+WAZUH_URL=${WAZUH_URL:-https://localhost:55000}
+WAZUH_USER=${WAZUH_USER:-kiron}
+WAZUH_PASSWORD=${WAZUH_PASSWORD:-Lapergunta200.}
+
+# Variáveis para controle de processos
+BACKEND_PID=""
+FRONTEND_PID=""
+CLEANUP_DONE=false
+
+# ===================================================================
+# LIMPEZA AUTOMÁTICA DE PORTAS E PROCESSOS
+# ===================================================================
+force_cleanup_ports() {
+    print_step "🧹 LIMPEZA AUTOMÁTICA DE PORTAS E PROCESSOS..."
+    
+    # Lista de portas utilizadas pelo projeto
+    PORTS_TO_CLEAN=("$BACKEND_PORT" "$FRONTEND_PORT")
+    
+    # Obtém o PID do script atual para não se matar
+    CURRENT_PID=$$
+    
+    # Mata todos os processos relacionados ao projeto (EXCETO o script atual)
+    print_step "🔪 Finalizando processos antigos relacionados ao Agente IA..."
+    
+    # Mata scripts antigos do start-agente.sh (exceto o atual)
+    OLD_SCRIPTS=$(pgrep -f "start-agente.sh" | grep -v "^${CURRENT_PID}$" || true)
+    if [ ! -z "$OLD_SCRIPTS" ]; then
+        echo "$OLD_SCRIPTS" | xargs -r kill -9 2>/dev/null || true
+        print_success "Scripts antigos finalizados"
+    fi
+    
+    # Mata outros processos do projeto
+    pkill -f "simple_app.py" 2>/dev/null || true
+    pkill -f "start_frontend.py" 2>/dev/null || true
+    pkill -f "app.py" 2>/dev/null || true
+    pkill -f "app_hybrid.py" 2>/dev/null || true
+    
+    # Limpa processos especificamente nas portas do projeto
+    for port in "${PORTS_TO_CLEAN[@]}"; do
+        print_step "🔍 Limpando porta $port..."
+        
+        # Encontra e mata processos na porta especificada
+        PIDS=$(lsof -ti:$port 2>/dev/null || true)
+        if [ ! -z "$PIDS" ]; then
+            print_warning "Encontrados processos na porta $port: $PIDS"
+            echo "$PIDS" | xargs -r kill -9 2>/dev/null || true
+            sleep 2
+            
+            # Verifica se ainda há processos
+            REMAINING=$(lsof -ti:$port 2>/dev/null || true)
+            if [ -z "$REMAINING" ]; then
+                print_success "Porta $port liberada com sucesso"
+            else
+                print_warning "Alguns processos podem ainda estar ativos na porta $port"
+            fi
+        else
+            print_success "Porta $port já estava livre"
+        fi
+    done
+    
+    # Aguarda um momento para garantir que os processos foram terminados
+    print_step "⏱️ Aguardando finalização completa dos processos..."
+    sleep 3
+    
+    print_success "Limpeza automática concluída!"
+    echo ""
+}
+
 # Função para imprimir mensagens coloridas
 print_step() {
     echo -e "${CYAN}[AGENTE IA]${NC} $1"
@@ -45,6 +118,71 @@ print_warning() {
 print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
+
+print_info() {
+    echo -e "${BLUE}ℹ️ $1${NC}"
+}
+
+# Função de limpeza que será chamada ao sair
+cleanup_on_exit() {
+    if [ "$CLEANUP_DONE" = true ]; then
+        return
+    fi
+    
+    # Se o trap não está ativo, ignora (estamos em operação crítica)
+    if [ "$TRAP_ACTIVE" != true ]; then
+        return
+    fi
+    
+    CLEANUP_DONE=true
+    
+    echo ""
+    print_warning "Recebido sinal de interrupção. Finalizando processos..."
+    
+    # Mata processo do backend
+    if [ ! -z "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        print_step "Finalizando backend (PID: $BACKEND_PID)..."
+        kill "$BACKEND_PID" 2>/dev/null || true
+        wait "$BACKEND_PID" 2>/dev/null || true
+    fi
+    
+    # Mata processo do frontend
+    if [ ! -z "$FRONTEND_PID" ] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
+        print_step "Finalizando frontend (PID: $FRONTEND_PID)..."
+        kill "$FRONTEND_PID" 2>/dev/null || true
+        wait "$FRONTEND_PID" 2>/dev/null || true
+    fi
+    
+    # Limpeza adicional de processos nas portas
+    kill_port_processes $BACKEND_PORT "Backend" true
+    kill_port_processes $FRONTEND_PORT "Frontend" true
+    
+    # Remove arquivos PID
+    rm -f agente_ia/backend/backend.pid 2>/dev/null || true
+    rm -f agente_ia/frontend/frontend.pid 2>/dev/null || true
+    
+    print_success "Todos os processos foram finalizados corretamente"
+    echo -e "${CYAN}Obrigado por usar o Agente IA! 🤖${NC}"
+    exit 0
+}
+
+# Variável para controlar se o trap está ativo
+TRAP_ACTIVE=true
+
+# Função para desabilitar trap temporariamente
+disable_trap() {
+    TRAP_ACTIVE=false
+    trap '' SIGINT SIGTERM
+}
+
+# Função para reabilitar trap
+enable_trap() {
+    TRAP_ACTIVE=true
+    trap cleanup_on_exit SIGINT SIGTERM EXIT
+}
+
+# Configura trap para capturar sinais de interrupção
+trap cleanup_on_exit SIGINT SIGTERM EXIT
 
 # Função para detectar IP local automaticamente
 detect_local_ip() {
@@ -75,19 +213,28 @@ detect_local_ip() {
 kill_port_processes() {
     local port=$1
     local process_name=$2
+    local silent=${3:-false}
     
-    print_step "Verificando processos na porta $port..."
+    if [ "$silent" != true ]; then
+        print_step "Verificando processos na porta $port..."
+    fi
     
     # Encontra processos usando a porta
     local pids=$(lsof -ti:$port 2>/dev/null || true)
     
     if [[ -n "$pids" ]]; then
-        print_warning "Matando processos $process_name na porta $port: $pids"
+        if [ "$silent" != true ]; then
+            print_warning "Finalizando processos $process_name na porta $port: $pids"
+        fi
         echo "$pids" | xargs kill -9 2>/dev/null || true
-        sleep 2
-        print_success "Processos na porta $port finalizados"
+        sleep 1
+        if [ "$silent" != true ]; then
+            print_success "Processos na porta $port finalizados"
+        fi
     else
-        print_success "Porta $port está livre"
+        if [ "$silent" != true ]; then
+            print_success "Porta $port está livre"
+        fi
     fi
 }
 
@@ -100,9 +247,12 @@ cleanup_project_processes() {
     kill_port_processes $FRONTEND_PORT "Frontend"
     
     # Mata processos Python relacionados ao projeto
-    # pkill -f "agente_ia" 2>/dev/null || true
     pkill -f "flask.*5000" 2>/dev/null || true
-    pkill -f "node.*3000" 2>/dev/null || true
+    pkill -f "python.*http.server.*3000" 2>/dev/null || true
+    
+    # Remove arquivos PID antigos
+    rm -f agente_ia/backend/backend.pid 2>/dev/null || true
+    rm -f agente_ia/frontend/frontend.pid 2>/dev/null || true
     
     print_success "Limpeza de processos concluída"
 }
@@ -163,6 +313,14 @@ LOGS_DIRECTORY=../logs-analizes
 LOG_RETENTION_DAYS=90
 MONITORING_INTERVAL=10
 
+# === WAZUH / SIEM ===
+WAZUH_ENABLED=$WAZUH_ENABLED
+WAZUH_SYSLOG_HOST=$WAZUH_SYSLOG_HOST
+WAZUH_SYSLOG_PORT=$WAZUH_SYSLOG_PORT
+WAZUH_URL=$WAZUH_URL
+WAZUH_USER=$WAZUH_USER
+WAZUH_PASSWORD=$WAZUH_PASSWORD
+
 # === URLS DE ACESSO ===
 BACKEND_URL=http://$local_ip:$BACKEND_PORT
 FRONTEND_URL=http://$local_ip:$FRONTEND_PORT
@@ -192,7 +350,7 @@ install_python_dependencies() {
     if [ ! -d "agente_ia/venv" ]; then
         print_step "Criando ambiente virtual Python..."
         cd agente_ia
-        python3 -m venv venv
+        /usr/bin/python3 -m venv venv --system-site-packages
         cd ..
     fi
     
@@ -200,123 +358,41 @@ install_python_dependencies() {
     cd agente_ia
     source venv/bin/activate
     
+    # Verifica se dependências principais já estão instaladas
+    if python -c "import flask, flask_cors, yaml, psutil" 2>/dev/null; then
+        print_success "Dependências principais já instaladas. Pulando instalação..."
+        cd ..
+        return
+    fi
+    
     print_step "Atualizando pip..."
-    pip install --upgrade pip
+    pip install --upgrade pip --quiet
     
     print_step "Instalando dependências do requirements.txt..."
-    pip install -r backend/requirements.txt
+    echo -e "${YELLOW}⏳ Isso pode demorar alguns minutos (TensorFlow é pesado)...${NC}"
+    echo -e "${CYAN}💡 Pressione Ctrl+C APENAS se demorar mais de 10 minutos${NC}"
+    
+    # Desabilita trap durante instalação crítica
+    disable_trap
+    
+    # Instala dependências com timeout e progresso
+    timeout 600 pip install -r backend/requirements.txt --quiet --no-cache-dir || {
+        echo -e "${RED}❌ Timeout ou erro na instalação de dependências${NC}"
+        echo -e "${YELLOW}💡 Tentando instalação básica sem TensorFlow...${NC}"
+        
+        # Cria requirements básico temporário
+        grep -v "tensorflow\|scikit-learn" backend/requirements.txt > /tmp/requirements_basic.txt
+        pip install -r /tmp/requirements_basic.txt --quiet --no-cache-dir
+        rm -f /tmp/requirements_basic.txt
+        
+        echo -e "${CYAN}ℹ️  TensorFlow será instalado em background mais tarde${NC}"
+    }
+    
+    # Reabilita trap após instalação
+    enable_trap
     
     cd ..
     print_success "Dependências Python instaladas"
-}
-
-# Função para instalar dependências Node.js (se necessário)
-install_node_dependencies() {
-    print_step "📦 Verificando Node.js para frontend..."
-    
-    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        print_step "Instalando dependências Node.js..."
-        cd agente_ia/frontend
-        
-        # Cria package.json se não existir
-        if [ ! -f "package.json" ]; then
-            npm init -y
-            npm install express cors body-parser socket.io
-        else
-            npm install
-        fi
-        
-        cd ../..
-        print_success "Dependências Node.js instaladas"
-    else
-        print_warning "Node.js não encontrado. Frontend será servido via Python Flask."
-    fi
-}
-
-# Função para testar SMTP
-test_smtp_connection() {
-    print_step "📧 Testando conexão SMTP..."
-    
-    cd agente_ia
-    source venv/bin/activate
-    
-    python3 -c "
-import smtplib
-import sys
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-
-try:
-    # Configurações do email
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    email_user = '$EMAIL_USER'
-    email_password = '$EMAIL_APP_PASSWORD'
-    
-    # Cria mensagem de teste
-    msg = MIMEMultipart()
-    msg['From'] = email_user
-    msg['To'] = email_user
-    msg['Subject'] = '[AGENTE IA] ✅ Sistema Iniciado com Sucesso'
-    
-    body = f'''
-🎯 AGENTE IA - CONFIRMAÇÃO DE INICIALIZAÇÃO
-
-Olá! Seu Agente IA foi iniciado com sucesso.
-
-📊 Informações do Sistema:
-• Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
-• IP Local: $(detect_local_ip)
-• Backend: http://$(detect_local_ip):$BACKEND_PORT
-• Frontend: http://$(detect_local_ip):$FRONTEND_PORT
-
-🚀 Status dos Componentes:
-✅ Sistema de Email: Funcionando
-✅ Detector de Anomalias: Ativo
-✅ Coletor de Logs: Pronto
-✅ IA Híbrida: Carregada
-
-🎨 Interface Web:
-Acesse: http://$(detect_local_ip):$FRONTEND_PORT
-
-Este é um email automático de confirmação.
-Não responda a esta mensagem.
-
----
-Agente IA - Detector de Anomalias Inteligente
-Desenvolvido para universidades brasileiras
-    '''
-    
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))
-    
-    # Conecta e envia
-    print('Conectando ao servidor SMTP...')
-    server = smtplib.SMTP(smtp_server, smtp_port)
-    server.starttls()
-    server.login(email_user, email_password)
-    
-    print('Enviando email de confirmação...')
-    text = msg.as_string()
-    server.sendmail(email_user, email_user, text)
-    server.quit()
-    
-    print('✅ Email de confirmação enviado com sucesso!')
-    sys.exit(0)
-    
-except Exception as e:
-    print(f'❌ Erro ao enviar email: {e}')
-    sys.exit(1)
-"
-    
-    if [ $? -eq 0 ]; then
-        print_success "Teste SMTP realizado com sucesso - Email enviado!"
-    else
-        print_error "Falha no teste SMTP. Verifique as credenciais."
-        exit 1
-    fi
-    
-    cd ..
 }
 
 # Função para criar diretórios necessários
@@ -336,544 +412,42 @@ start_backend() {
     cd agente_ia
     source venv/bin/activate
     
-    # Cria arquivo principal do backend se não existir
-    if [ ! -f "backend/app.py" ]; then
-        cat > backend/app.py << 'EOF'
-from flask import Flask, jsonify, render_template
-from flask_cors import CORS
-import os
-from src.core.config_loader import config
-from src.core.log_collector import LogCollector
-from src.core.anomaly_detector import BasicAnomalyDetector
-import logging
-
-app = Flask(__name__)
-CORS(app)
-
-# Configuração de logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Inicializa componentes
-collector = LogCollector()
-detector = BasicAnomalyDetector()
-
-@app.route('/')
-def home():
-    return jsonify({
-        'status': 'success',
-        'message': 'Agente IA - Backend funcionando!',
-        'version': config.get('sistema.versao', '1.0.0')
-    })
-
-@app.route('/api/status')
-def status():
-    return jsonify({
-        'status': 'online',
-        'components': {
-            'collector': 'ready',
-            'detector': 'ready',
-            'email': 'configured'
-        }
-    })
-
-if __name__ == '__main__':
-    host = os.getenv('BACKEND_HOST', 'localhost')
-    port = int(os.getenv('BACKEND_PORT', 5000))
-    app.run(host=host, port=port, debug=True)
-EOF
-    fi
-    
-    # Inicia backend em background
-    nohup python3 backend/app.py > backend/logs/backend.log 2>&1 &
+    # Inicia backend (voltando para versão estável com melhorias)
+    local local_ip=$(detect_local_ip)
+    BACKEND_HOST=$local_ip BACKEND_PORT=$BACKEND_PORT \
+    WAZUH_ENABLED=$WAZUH_ENABLED WAZUH_SYSLOG_HOST=$WAZUH_SYSLOG_HOST WAZUH_SYSLOG_PORT=$WAZUH_SYSLOG_PORT \
+    WAZUH_URL=$WAZUH_URL WAZUH_USER=$WAZUH_USER WAZUH_PASSWORD=$WAZUH_PASSWORD \
+    /usr/bin/python3 backend/simple_app.py > backend/logs/backend.log 2>&1 &
     BACKEND_PID=$!
+    
+    # Salva PID para controle
     echo $BACKEND_PID > backend/backend.pid
     
     cd ..
     
     # Aguarda backend inicializar
-    sleep 7
+    print_step "Aguardando backend inicializar..."
+    local attempts=0
+    local max_attempts=30
     
-    local local_ip=$(detect_local_ip)
-    if curl -s "http://$local_ip:$BACKEND_PORT/api/status" > /dev/null; then
-        print_success "Backend iniciado em http://$local_ip:$BACKEND_PORT"
-    else
-        print_error "Falha ao iniciar backend"
-        exit 1
-    fi
-}
-
-# Função para criar frontend simples
-create_simple_frontend() {
-    print_step "🎨 Criando Frontend..."
-    
-    # Cria HTML principal
-    cat > agente_ia/frontend/index.html << 'EOF'
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente IA - Detector de Anomalias</title>
-    <link rel="stylesheet" href="static/style.css">
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>🤖 Agente IA</h1>
-            <p>Detector de Anomalias Inteligente</p>
-            <div class="status-indicator" id="status">
-                <span class="status-dot"></span>
-                <span>Conectando...</span>
-            </div>
-        </header>
+    while [ $attempts -lt $max_attempts ]; do
+        if curl -s "http://$local_ip:$BACKEND_PORT/api/status" > /dev/null 2>&1; then
+            print_success "Backend iniciado em http://$local_ip:$BACKEND_PORT"
+            return 0
+        fi
         
-        <main class="main-content">
-            <div class="dashboard-grid">
-                <div class="card">
-                    <h3>📊 Status do Sistema</h3>
-                    <div id="system-status">Carregando...</div>
-                </div>
-                
-                <div class="card">
-                    <h3>🚨 Anomalias Detectadas</h3>
-                    <div id="anomalies-count">0</div>
-                </div>
-                
-                <div class="card">
-                    <h3>📈 Logs Processados</h3>
-                    <div id="logs-count">0</div>
-                </div>
-                
-                <div class="card">
-                    <h3>🎯 Precisão da IA</h3>
-                    <div id="ai-accuracy">95.3%</div>
-                </div>
-            </div>
-            
-            <div class="actions">
-                <button class="btn btn-primary" onclick="startMonitoring()">
-                    ▶️ Iniciar Monitoramento
-                </button>
-                <button class="btn btn-secondary" onclick="stopMonitoring()">
-                    ⏹️ Parar Monitoramento
-                </button>
-                <button class="btn btn-success" onclick="testEmail()">
-                    📧 Testar Email
-                </button>
-            </div>
-            
-            <div class="logs-section">
-                <h3>📋 Logs Recentes</h3>
-                <div class="logs-container" id="logs-container">
-                    <div class="log-entry">
-                        <span class="timestamp">2024-01-15 10:30:15</span>
-                        <span class="level info">INFO</span>
-                        <span class="message">Sistema iniciado com sucesso</span>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-    
-    <script src="static/app.js"></script>
-</body>
-</html>
-EOF
-
-    # Cria CSS com tema escuro e verde água
-    cat > agente_ia/frontend/static/style.css << 'EOF'
-/* Agente IA - Tema Escuro com Verde Água */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    color: #ffffff;
-    min-height: 100vh;
-    line-height: 1.6;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-.header {
-    text-align: center;
-    margin-bottom: 40px;
-    padding: 30px;
-    background: rgba(77, 208, 225, 0.1);
-    border-radius: 15px;
-    border: 1px solid #4dd0e1;
-}
-
-.header h1 {
-    font-size: 3rem;
-    margin-bottom: 10px;
-    background: linear-gradient(45deg, #4dd0e1, #26c6da);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.header p {
-    font-size: 1.2rem;
-    color: #b0b0b0;
-    margin-bottom: 20px;
-}
-
-.status-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: rgba(76, 175, 80, 0.2);
-    border-radius: 20px;
-    border: 1px solid #4caf50;
-}
-
-.status-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #4caf50;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.card {
-    background: rgba(45, 45, 45, 0.8);
-    padding: 25px;
-    border-radius: 12px;
-    border: 1px solid rgba(77, 208, 225, 0.3);
-    transition: all 0.3s ease;
-}
-
-.card:hover {
-    transform: translateY(-5px);
-    border-color: #4dd0e1;
-    box-shadow: 0 10px 30px rgba(77, 208, 225, 0.2);
-}
-
-.card h3 {
-    color: #4dd0e1;
-    margin-bottom: 15px;
-    font-size: 1.1rem;
-}
-
-.card div {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #ffffff;
-}
-
-.actions {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    margin-bottom: 40px;
-    flex-wrap: wrap;
-}
-
-.btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.btn-primary {
-    background: linear-gradient(45deg, #4dd0e1, #26c6da);
-    color: #1a1a1a;
-}
-
-.btn-secondary {
-    background: rgba(77, 208, 225, 0.2);
-    color: #4dd0e1;
-    border: 1px solid #4dd0e1;
-}
-
-.btn-success {
-    background: rgba(76, 175, 80, 0.2);
-    color: #4caf50;
-    border: 1px solid #4caf50;
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.logs-section {
-    background: rgba(45, 45, 45, 0.6);
-    padding: 25px;
-    border-radius: 12px;
-    border: 1px solid rgba(77, 208, 225, 0.3);
-}
-
-.logs-section h3 {
-    color: #4dd0e1;
-    margin-bottom: 20px;
-}
-
-.logs-container {
-    max-height: 300px;
-    overflow-y: auto;
-    background: rgba(26, 26, 26, 0.8);
-    padding: 15px;
-    border-radius: 8px;
-}
-
-.log-entry {
-    display: flex;
-    gap: 15px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(77, 208, 225, 0.1);
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
-}
-
-.timestamp {
-    color: #b0b0b0;
-    min-width: 150px;
-}
-
-.level {
-    min-width: 60px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    text-align: center;
-    font-weight: bold;
-}
-
-.level.info {
-    background: rgba(33, 150, 243, 0.3);
-    color: #2196f3;
-}
-
-.level.warning {
-    background: rgba(255, 152, 0, 0.3);
-    color: #ff9800;
-}
-
-.level.error {
-    background: rgba(244, 67, 54, 0.3);
-    color: #f44336;
-}
-
-.message {
-    color: #ffffff;
-    flex: 1;
-}
-
-/* Scrollbar personalizada */
-.logs-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.logs-container::-webkit-scrollbar-track {
-    background: rgba(45, 45, 45, 0.5);
-    border-radius: 3px;
-}
-
-.logs-container::-webkit-scrollbar-thumb {
-    background: #4dd0e1;
-    border-radius: 3px;
-}
-
-.logs-container::-webkit-scrollbar-thumb:hover {
-    background: #26c6da;
-}
-
-/* Responsividade */
-@media (max-width: 768px) {
-    .header h1 {
-        font-size: 2rem;
-    }
-    
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .actions {
-        flex-direction: column;
-        align-items: center;
-    }
-    
-    .btn {
-        width: 100%;
-        max-width: 300px;
-    }
-}
-EOF
-
-    # Cria JavaScript básico
-    cat > agente_ia/frontend/static/app.js << 'EOF'
-// Agente IA - Frontend JavaScript
-class AgenteIA {
-    constructor() {
-        this.apiUrl = window.location.protocol + '//' + window.location.hostname + ':5000';
-        this.isMonitoring = false;
-        this.init();
-    }
-    
-    async init() {
-        console.log('🤖 Agente IA - Frontend iniciado');
-        await this.checkStatus();
-        this.startStatusUpdates();
-    }
-    
-    async checkStatus() {
-        try {
-            const response = await fetch(`${this.apiUrl}/api/status`);
-            const data = await response.json();
-            
-            if (data.status === 'online') {
-                this.updateStatusIndicator('online', 'Sistema Online');
-                this.updateSystemStatus('✅ Todos os componentes funcionando');
-            }
-        } catch (error) {
-            console.error('Erro ao verificar status:', error);
-            this.updateStatusIndicator('offline', 'Sistema Offline');
-            this.updateSystemStatus('❌ Erro de conexão com backend');
-        }
-    }
-    
-    updateStatusIndicator(status, message) {
-        const indicator = document.getElementById('status');
-        const dot = indicator.querySelector('.status-dot');
-        const text = indicator.querySelector('span:last-child');
+        # Verifica se o processo ainda está rodando
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            print_error "Backend falhou ao iniciar. Verifique os logs em agente_ia/backend/logs/backend.log"
+            exit 1
+        fi
         
-        if (status === 'online') {
-            dot.style.background = '#4caf50';
-            indicator.style.borderColor = '#4caf50';
-            indicator.style.background = 'rgba(76, 175, 80, 0.2)';
-        } else {
-            dot.style.background = '#f44336';
-            indicator.style.borderColor = '#f44336';
-            indicator.style.background = 'rgba(244, 67, 54, 0.2)';
-        }
-        
-        text.textContent = message;
-    }
+        attempts=$((attempts + 1))
+        sleep 1
+    done
     
-    updateSystemStatus(status) {
-        document.getElementById('system-status').textContent = status;
-    }
-    
-    startStatusUpdates() {
-        setInterval(() => {
-            this.checkStatus();
-        }, 5000); // Atualiza a cada 5 segundos
-    }
-    
-    addLogEntry(timestamp, level, message) {
-        const container = document.getElementById('logs-container');
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        
-        entry.innerHTML = `
-            <span class="timestamp">${timestamp}</span>
-            <span class="level ${level.toLowerCase()}">${level}</span>
-            <span class="message">${message}</span>
-        `;
-        
-        container.insertBefore(entry, container.firstChild);
-        
-        // Limita a 50 logs
-        while (container.children.length > 50) {
-            container.removeChild(container.lastChild);
-        }
-    }
-}
-
-// Funções globais para os botões
-async function startMonitoring() {
-    console.log('▶️ Iniciando monitoramento...');
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'Monitoramento de logs iniciado'
-    );
-    
-    // Simula detecção de anomalias
-    setTimeout(() => {
-        document.getElementById('anomalies-count').textContent = '3';
-        document.getElementById('logs-count').textContent = '1,247';
-        agente.addLogEntry(
-            new Date().toLocaleString('pt-BR'),
-            'WARNING',
-            'Anomalia detectada: Tentativas de login suspeitas do IP 192.168.1.100'
-        );
-    }, 2000);
-}
-
-async function stopMonitoring() {
-    console.log('⏹️ Parando monitoramento...');
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'Monitoramento de logs parado'
-    );
-}
-
-async function testEmail() {
-    console.log('📧 Testando email...');
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'Teste de email enviado com sucesso'
-    );
-    
-    alert('✅ Email de teste enviado! Verifique sua caixa de entrada.');
-}
-
-// Inicializa aplicação
-const agente = new AgenteIA();
-
-// Adiciona alguns logs de exemplo
-setTimeout(() => {
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'Agente IA iniciado com sucesso'
-    );
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'Carregando logs da universidade...'
-    );
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        'IA Híbrida Adaptativa carregada'
-    );
-}, 1000);
-EOF
-
-    print_success "Frontend criado com tema escuro e verde água"
+    print_error "Timeout aguardando backend inicializar"
+    exit 1
 }
 
 # Função para iniciar frontend
@@ -884,21 +458,65 @@ start_frontend() {
     
     # Inicia servidor HTTP simples Python
     local local_ip=$(detect_local_ip)
-    nohup python3 -m http.server $FRONTEND_PORT --bind $local_ip > ../backend/logs/frontend.log 2>&1 &
+    /usr/bin/python3 ../start_frontend.py > ../backend/logs/frontend.log 2>&1 &
     FRONTEND_PID=$!
+    
+    # Salva PID para controle
     echo $FRONTEND_PID > frontend.pid
     
     cd ../..
     
     # Aguarda frontend inicializar
-    sleep 2
+    print_step "Aguardando frontend inicializar..."
+    local attempts=0
+    local max_attempts=15
     
-    if curl -s "http://$local_ip:$FRONTEND_PORT" > /dev/null; then
-        print_success "Frontend iniciado em http://$local_ip:$FRONTEND_PORT"
-    else
-        print_error "Falha ao iniciar frontend"
-        exit 1
-    fi
+    while [ $attempts -lt $max_attempts ]; do
+        if curl -s "http://$local_ip:$FRONTEND_PORT" > /dev/null 2>&1; then
+            print_success "Frontend iniciado em http://$local_ip:$FRONTEND_PORT"
+            return 0
+        fi
+        
+        # Verifica se o processo ainda está rodando
+        if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+            print_error "Frontend falhou ao iniciar. Verifique os logs em agente_ia/backend/logs/frontend.log"
+            exit 1
+        fi
+        
+        attempts=$((attempts + 1))
+        sleep 1
+    done
+    
+    print_error "Timeout aguardando frontend inicializar"
+    exit 1
+}
+
+# Função para monitorar processos
+monitor_processes() {
+    print_info "Monitorando processos. Pressione Ctrl+C para finalizar..."
+    echo ""
+    
+    local local_ip=$(detect_local_ip)
+    
+    while true; do
+        # Verifica se os processos ainda estão rodando
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            print_error "Backend parou inesperadamente!"
+            break
+        fi
+        
+        if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+            print_error "Frontend parou inesperadamente!"
+            break
+        fi
+        
+        # Mostra status a cada 30 segundos
+        echo -e "${CYAN}[$(date '+%H:%M:%S')] Sistema funcionando - Backend PID: $BACKEND_PID | Frontend PID: $FRONTEND_PID${NC}"
+        echo -e "${BLUE}   🌐 Frontend: http://$local_ip:$FRONTEND_PORT | 🔧 Backend: http://$local_ip:$BACKEND_PORT${NC}"
+        echo ""
+        
+        sleep 30
+    done
 }
 
 # Função principal
@@ -906,14 +524,18 @@ main() {
     clear
     echo -e "${CYAN}"
     echo "====================================================================="
-    echo "🤖 AGENTE IA - SISTEMA DE INICIALIZAÇÃO AUTOMÁTICA"
+    echo "🤖 AGENTE IA - SISTEMA DE INICIALIZAÇÃO CONTROLADA"
     echo "====================================================================="
     echo "Detector de Anomalias Inteligente"
     echo "Desenvolvido para universidades brasileiras"
+    echo "VERSÃO MELHORADA: Controle total de processos"
     echo "====================================================================="
     echo -e "${NC}"
     
     print_step "🚀 Iniciando processo de configuração..."
+    
+    # 0. LIMPEZA AUTOMÁTICA FORÇADA (nova funcionalidade)
+    force_cleanup_ports
     
     # 1. Limpeza de processos
     cleanup_project_processes
@@ -926,22 +548,16 @@ main() {
     
     # 4. Instalação de dependências
     install_python_dependencies
-    install_node_dependencies
     
-    # 5. Teste SMTP
-    test_smtp_connection
-    
-    # 6. Criação do frontend
-    create_simple_frontend
-    
-    # 7. Inicialização dos serviços
+    # 5. Inicialização dos serviços
     start_backend
     start_frontend
     
-    # 8. Informações finais
+    # 6. Informações finais
     local local_ip=$(detect_local_ip)
     
-    echo -e "\n${GREEN}====================================================================="
+    echo ""
+    echo -e "${GREEN}====================================================================="
     echo "✅ AGENTE IA INICIADO COM SUCESSO!"
     echo "=====================================================================${NC}"
     echo -e "${CYAN}📊 Informações de Acesso:${NC}"
@@ -953,15 +569,14 @@ main() {
     echo -e "   ✅ Sistema de Email configurado"
     echo -e "   ✅ Detector de Anomalias ativo"
     echo -e "   ✅ Coletor de Logs pronto"
-    echo -e "   ✅ IA Híbrida carregada"
     echo -e "   ✅ Interface web funcionando"
     echo ""
-    echo -e "${YELLOW}📋 Para parar o sistema:${NC}"
-    echo -e "   kill \$(cat agente_ia/backend/backend.pid)"
-    echo -e "   kill \$(cat agente_ia/frontend/frontend.pid)"
-    echo ""
-    echo -e "${CYAN}🎨 Acesse a interface em: ${YELLOW}http://$local_ip:$FRONTEND_PORT${NC}"
+    echo -e "${YELLOW}📋 Para finalizar:${NC} Pressione ${RED}Ctrl+C${NC}"
     echo -e "${GREEN}=====================================================================${NC}"
+    echo ""
+    
+    # 7. Monitoramento contínuo
+    monitor_processes
 }
 
 # Executa função principal

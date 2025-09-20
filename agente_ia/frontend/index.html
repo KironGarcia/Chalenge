@@ -3,25 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente IA - Detector de Anomalias</title>
+    <title>AGENTE IA - Security Operations Center</title>
     <link rel="stylesheet" href="static/style.css">
+    <!-- Google Fonts para tipografia profissional -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
 </head>
 <body>
     <div class="container">
+        <!-- Header Cyberpunk -->
         <header class="header">
-            <h1>🤖 Agente IA</h1>
-            <p>Detector de Anomalias Inteligente</p>
+            <h1>🤖 AGENTE IA</h1>
+            <p>Security Operations Center - Sistema de Detecção Inteligente</p>
             <div class="status-indicator" id="status">
                 <span class="status-dot"></span>
-                <span>Conectando...</span>
+                <span>Sistema Operacional</span>
             </div>
         </header>
         
         <main class="main-content">
-            <div class="dashboard-grid">
+            <!-- Dashboard Principal -->
+            <section class="dashboard-grid">
+                <!-- Métricas do Sistema -->
                 <div class="card">
                     <h3>📊 Status do Sistema</h3>
-                    <div id="system-status">Carregando...</div>
+                    <div id="system-status">Iniciando...</div>
                 </div>
                 
                 <div class="card">
@@ -38,9 +44,48 @@
                     <h3>🎯 Precisão da IA</h3>
                     <div id="ai-accuracy">95.3%</div>
                 </div>
+            </section>
+
+            <!-- Seção SIEM Integration (Preparada para Wazuh) -->
+            <section class="wazuh-integration" id="wazuh-section">
+                <div class="wazuh-title">Security Operations Center</div>
+                
+                <div class="dashboard-grid">
+                    <!-- Status de Segurança -->
+                    <div class="card">
+                        <h3>🛡️ Threat Level</h3>
+                        <div id="threat-level" class="text-accent">LOW</div>
+                    </div>
+                    
+                    <!-- Alertas Críticos -->
+                    <div class="card">
+                        <h3>⚠️ Critical Alerts</h3>
+                        <div id="critical-alerts">0</div>
+                    </div>
+                    
+                    <!-- Eventos SIEM -->
+                    <div class="card">
+                        <h3>📡 SIEM Events</h3>
+                        <div id="siem-events">Aguardando...</div>
+                    </div>
+                    
+                    <!-- Connection Status -->
+                    <div class="card">
+                        <h3>🔗 SIEM Status</h3>
+                        <div id="siem-status">Desconectado</div>
+                </div>
             </div>
             
-            <div class="actions">
+                <!-- Link para Wazuh Dashboard (oculto por padrão) -->
+                <div id="wazuh-detail-link" class="hidden" style="text-align: center; margin-top: 24px;">
+                    <a href="#" target="_blank" class="btn btn-secondary">
+                        🔍 Ver Análise Detalhada no Wazuh
+                    </a>
+                </div>
+            </section>
+
+            <!-- Ações do Sistema -->
+            <section class="actions">
                 <button class="btn btn-primary" onclick="startMonitoring()">
                     ▶️ Iniciar Monitoramento
                 </button>
@@ -48,20 +93,215 @@
                     ⏹️ Parar Monitoramento
                 </button>
                 <button class="btn btn-success" onclick="testEmail()">
-                    📧 Testar Email
+                    📧 Testar Alertas
                 </button>
+                <button class="btn btn-secondary" onclick="collectLogs()">
+<button class="btn btn-warning" onclick="startRealTimeMonitoring()">🔍 Iniciar Monitoramento RT</button>
+                <button class="btn btn-danger" onclick="stopRealTimeMonitoring()">🛑 Parar Monitoramento RT</button>
+                    🔄 Coletar Logs
+                </button>
+            </section>
+
+            <!-- Painel de Controle Wazuh -->
+            <section class="wazuh-control-panel" style="margin-top: 32px;">
+                <h3>🛡️ Controle Manual de Ações SIEM</h3>
+                <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                    
+                    <!-- Ações de Segurança -->
+                    <div class="card">
+                        <h4>🚫 Bloqueio de IP</h4>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <input type="text" id="ip-to-block" placeholder="Ex: 192.168.1.100" 
+                                   style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
+                            <button class="btn-mini btn-danger" onclick="executeManualAction('block_ip', document.getElementById('ip-to-block').value)">
+                                Bloquear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Reinício de Serviços -->
+                    <div class="card">
+                        <h4>🔄 Reiniciar Serviço</h4>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <select id="service-to-restart" style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
+                                <option value="">Selecionar serviço...</option>
+                                <option value="nginx">Nginx</option>
+                                <option value="apache2">Apache</option>
+                                <option value="ssh">SSH</option>
+                                <option value="fail2ban">Fail2Ban</option>
+                            </select>
+                            <button class="btn-mini btn-success" onclick="executeManualAction('restart_service', document.getElementById('service-to-restart').value)">
+                                Reiniciar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Isolamento de Processo -->
+                    <div class="card">
+                        <h4>⏸️ Isolar Processo</h4>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <input type="text" id="pid-to-isolate" placeholder="Ex: 1234" 
+                                   style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
+                            <button class="btn-mini btn-danger" onclick="executeManualAction('isolate_process', document.getElementById('pid-to-isolate').value)">
+                                Isolar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Ações Críticas -->
+                    <div class="card" style="border: 2px solid var(--status-warning);">
+                        <h4 style="color: var(--status-warning);">⚠️ Ações Críticas</h4>
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                            <button class="btn-mini btn-danger" onclick="executeManualAction('shutdown_system', 'localhost')">
+                                🔴 Desligar Sistema
+                            </button>
+                            <button class="btn-mini btn-danger" onclick="executeManualAction('network_isolation', 'localhost')">
+                                🌐 Isolamento de Rede
+                            </button>
+                            <small style="color: var(--text-muted); margin-top: 4px;">
+                                ⚠️ Ações críticas requerem aprovação
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Seção de Ações Automáticas -->
+            <section class="auto-actions-section" id="auto-actions">
+                <h3>⚡ Ações Automáticas Executadas</h3>
+                <div id="auto-actions-list">
+                    <div class="log-entry">
+                        <span class="timestamp">Aguardando ações...</span>
+                        <span class="level info">READY</span>
+                        <span class="message">Sistema preparado para resposta automática</span>
+                    </div>
+                </div>
+                
+                <!-- Seção de Aprovações Pendentes -->
+                <div id="pending-approvals" class="mt-lg">
+                    <h4 style="color: var(--accent-primary); margin-bottom: 16px;">⏳ Aguardando Aprovação Humana</h4>
+                    <div id="approval-list">
+                        <div class="log-entry">
+                            <span class="timestamp">Nenhuma aprovação pendente</span>
+                            <span class="level success">OK</span>
+                            <span class="message">Todas as ações críticas foram processadas</span>
+                        </div>
+                    </div>
             </div>
+            </section>
             
-            <div class="logs-section">
-                <h3>📋 Logs Recentes</h3>
+            <!-- Logs em Tempo Real -->
+            <section class="logs-section">
+                <h3>📋 Feed de Logs em Tempo Real</h3>
                 <div class="logs-container" id="logs-container">
                     <div class="log-entry">
                         <span class="timestamp">2024-01-15 10:30:15</span>
                         <span class="level info">INFO</span>
-                        <span class="message">Sistema iniciado com sucesso</span>
+                        <span class="message">🚀 Sistema Agente IA iniciado com sucesso</span>
+                    </div>
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:16</span>
+                        <span class="level success">SUCCESS</span>
+                        <span class="message">📡 Servidor Syslog ativo na porta 5140</span>
+                    </div>
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:17</span>
+                        <span class="level info">INFO</span>
+                        <span class="message">🔍 Monitoramento de anomalias ativado</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Métricas Avançadas (Preparadas para expansão) -->
+            <section class="dashboard-grid" style="margin-top: 48px;">
+                <div class="card">
+                    <h3>🌐 Fontes de Coleta</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Sistema:</span>
+                            <span id="source-system" style="color: var(--accent-primary);">Ativo</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Syslog:</span>
+                            <span id="source-syslog" style="color: var(--accent-primary);">Ativo</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">SSH:</span>
+                            <span id="source-ssh" style="color: var(--text-muted);">Inativo</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">SIEM:</span>
+                            <span id="source-siem" style="color: var(--text-muted);">Preparando...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>⚡ Performance</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">CPU:</span>
+                            <span id="cpu-usage" style="color: var(--status-success);">12%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">RAM:</span>
+                            <span id="ram-usage" style="color: var(--status-success);">256MB</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Latência:</span>
+                            <span id="latency" style="color: var(--status-success);">< 1ms</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Uptime:</span>
+                            <span id="uptime" style="color: var(--accent-primary);">00:00:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>🔒 Segurança</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">IPs Bloqueados:</span>
+                            <span id="blocked-ips" style="color: var(--status-warning);">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Tentativas SSH:</span>
+                            <span id="ssh-attempts" style="color: var(--status-info);">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Malware:</span>
+                            <span id="malware-detected" style="color: var(--status-success);">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Firewall:</span>
+                            <span id="firewall-status" style="color: var(--status-success);">Ativo</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>📊 Estatísticas</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Logs/min:</span>
+                            <span id="logs-per-minute" style="color: var(--accent-primary);">42</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Falsos Positivos:</span>
+                            <span id="false-positives" style="color: var(--status-success);">0.3%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Tempo Resposta:</span>
+                            <span id="response-time" style="color: var(--status-success);">< 500ms</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Disponibilidade:</span>
+                            <span id="availability" style="color: var(--status-success);">99.9%</span>
                     </div>
                 </div>
             </div>
+            </section>
         </main>
     </div>
     
