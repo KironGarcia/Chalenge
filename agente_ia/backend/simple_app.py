@@ -20,15 +20,6 @@ import time
 import psutil
 from collections import defaultdict
 import re
-import real_time_monitoring
-import re
-import real_time_monitoring
-import subprocess
-import time
-import psutil
-from collections import defaultdict
-import re
-import real_time_monitoring
 
 app = Flask(__name__)
 
@@ -256,6 +247,29 @@ def get_statistics_from_db() -> dict:
 
 # Inicializa banco ao carregar módulo
 init_database()
+
+# === SISTEMA DE CALLBACK PARA LOGS EM TEMPO REAL ===
+def add_realtime_log_callback(log_entry):
+    """Callback para receber logs do monitoramento em tempo real"""
+    try:
+        # Adiciona log à lista global
+        logs_data.append(log_entry)
+        
+        # Salva no banco de dados se for importante
+        if log_entry.get('level') in ['WARNING', 'ERROR', 'CRITICAL']:
+            save_alert_to_db(log_entry)
+        
+        # Envia para Wazuh se habilitado
+        send_enhanced_log_to_wazuh(log_entry)
+        
+        # Log de debug
+        logging.info(f"📊 Log em tempo real adicionado: {log_entry.get('message', '')[:100]}")
+        
+    except Exception as e:
+        logging.error(f"❌ Erro no callback de log: {e}")
+
+# Configura callback no sistema de monitoramento
+real_time_monitoring.set_logs_callback(add_realtime_log_callback)
 
 # Configurações WAZUH (opcional, integração SIEM)
 WAZUH_ENABLED = os.getenv('WAZUH_ENABLED', 'true').lower() == 'true'  # Habilitado por defecto
@@ -526,6 +540,15 @@ def load_real_logs():
         return
     
     try:
+        # Adiciona log de início do processo
+        logs_data.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'INFO',
+            'message': '📚 CARREGANDO LOGS HISTÓRICOS da universidade para análise baseline',
+            'source': 'system-loader',
+            'is_real': False
+        })
+        
         # Caminho para os logs da universidade
         logs_directory = '/home/kiron/Cursor/Agenteia/logs-analizes'
         log_files = glob.glob(os.path.join(logs_directory, 'Anon*.txt'))
@@ -537,7 +560,7 @@ def load_real_logs():
             if os.path.exists(log_file):
                 try:
                     with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        lines = f.readlines()[:50]  # Primeiras 50 linhas de cada arquivo
+                        lines = f.readlines()[:20]  # Reduzido para 20 para não spammar
                         
                     for line in lines:
                         line = line.strip()
@@ -554,8 +577,8 @@ def load_real_logs():
                             logs_data.append({
                                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                 'level': level,
-                                'message': line[:150],  # Trunca para evitar mensagens muito longas
-                                'source': f"university-{os.path.basename(log_file)}",
+                                'message': f"[HISTÓRICO] {line[:100]}",  # Marca como histórico
+                                'source': f"university-data",
                                 'is_real': True
                             })
                             logs_count += 1
@@ -563,20 +586,27 @@ def load_real_logs():
                 except Exception as e:
                     logging.warning(f"Erro ao ler {log_file}: {e}")
                     
+        # Adiciona log de conclusão
+        logs_data.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'SUCCESS',
+            'message': f'✅ BASELINE CARREGADO: {logs_count} logs históricos processados - Sistema pronto!',
+            'source': 'system-loader',
+            'is_real': False
+        })
+        
         real_logs_loaded = True
         logging.info(f"✅ Carregados {logs_count} logs reais da universidade!")
         
         # Adiciona anomalias detectadas nos logs reais
-        error_logs = [log for log in logs_data if log.get('level') == 'ERROR']
+        error_logs = [log for log in logs_data if log.get('level') == 'ERROR' and log.get('is_real')]
         if error_logs:
-            anomalies_data.append({
-                'id': f'real_errors_{datetime.now().strftime("%Y%m%d_%H%M")}',
-                'type': 'error_analysis',
-                'severity': 'MEDIA',
-                'description': f'Detectados {len(error_logs)} erros nos logs reais da universidade',
-                'timestamp': datetime.now().isoformat(),
-                'confidence': 0.9,
-                'real_data': True
+            logs_data.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'INFO',
+                'message': f'📊 ANÁLISE BASELINE: {len(error_logs)} padrões de erro identificados nos logs históricos',
+                'source': 'baseline-analyzer',
+                'is_real': False
             })
         
     except Exception as e:
@@ -670,36 +700,22 @@ def get_logs():
     if not real_logs_loaded:
         load_real_logs()
     
-    # Logs base do sistema
-    base_logs = [
-        {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'level': 'SUCCESS',
-            'message': '🚀 Sistema iniciado com logs REAIS da universidade',
-            'source': 'backend-enhanced'
-        },
-        {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'level': 'INFO',
-            'message': f'📊 Carregados {len([log for log in logs_data if log.get("is_real")])} logs reais',
-            'source': 'log-loader'
-        },
-        {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'level': 'INFO',
-            'message': '📧 Sistema de email REAL configurado',
-            'source': 'email-system'
-        }
-    ]
+    # Logs mais recentes primeiro (últimos 50)
+    recent_logs = logs_data[-50:] if logs_data else []
+    recent_logs.reverse()  # Mais recentes primeiro
     
-    # Combina logs base + logs reais
-    all_logs = base_logs + logs_data[-20:]  # Últimos 20 logs reais
+    # Estatísticas
+    real_logs_count = len([log for log in logs_data if log.get('is_real')])
+    monitoring_logs_count = len([log for log in logs_data if log.get('source', '').startswith(('real-time', 'anomaly', 'wazuh', 'auto', 'ia-'))])
     
     return jsonify({
         'status': 'success',
         'total_logs': len(logs_data),
-        'real_logs_count': len([log for log in logs_data if log.get('is_real')]),
-        'logs': all_logs
+        'real_logs_count': real_logs_count,
+        'monitoring_logs_count': monitoring_logs_count,
+        'monitoring_active': real_time_monitoring.real_time_monitoring_active,
+        'logs': recent_logs,
+        'last_updated': datetime.now().isoformat()
     })
 
 @app.route('/api/collect', methods=['POST', 'GET'])
@@ -881,27 +897,51 @@ def get_anomalies():
 # === ENDPOINTS DE MONITORAMENTO EM TEMPO REAL ===
 @app.route("/api/monitoring/start", methods=["POST"])
 def start_monitoring():
-    """Inicia monitoramento em tempo real"""
+    """Inicia monitoramento em tempo real com integração Wazuh"""
     try:
         success = real_time_monitoring.start_real_time_monitoring()
         
         if success:
-            # Adiciona log da ação
+            # Adiciona log da ação inicial
             log_entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "level": "SUCCESS",
-                "message": "🔍 Monitoramento em tempo real iniciado automaticamente",
+                "message": "🚀 MONITORAMENTO INICIADO - Sistema pronto para detecção de ameaças em tempo real",
                 "source": "real_time_monitoring",
                 "is_real": False
             }
             logs_data.append(log_entry)
             save_alert_to_db(log_entry)
-            send_enhanced_log_to_wazuh(log_entry)
+            
+            # Log sobre integração Wazuh
+            wazuh_status = "ATIVO" if WAZUH_ENABLED else "DESABILITADO"
+            wazuh_log = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "level": "INFO",
+                "message": f"🛡️ INTEGRAÇÃO WAZUH: {wazuh_status} - Enviando logs para SIEM em {WAZUH_SYSLOG_HOST}:{WAZUH_SYSLOG_PORT}",
+                "source": "wazuh-integration",
+                "is_real": False
+            }
+            logs_data.append(wazuh_log)
+            
+            # Log sobre regras de detecção
+            rules_count = len(real_time_monitoring.anomaly_detection_rules)
+            rules_log = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "level": "INFO",
+                "message": f"🔍 DETECTOR DE ANOMALIAS: {rules_count} regras ativas (força bruta, login falhado, scan de rede)",
+                "source": "anomaly-detector",
+                "is_real": False
+            }
+            logs_data.append(rules_log)
             
             return jsonify({
                 "status": "success",
-                "message": "Monitoramento em tempo real iniciado",
-                "monitoring_active": True
+                "message": "Monitoramento em tempo real iniciado com sucesso",
+                "monitoring_active": True,
+                "wazuh_enabled": WAZUH_ENABLED,
+                "rules_active": rules_count,
+                "started_at": datetime.now().isoformat()
             })
         else:
             return jsonify({
@@ -1706,6 +1746,160 @@ def get_system_resources():
         return jsonify({
             'status': 'error',
             'message': f'Erro ao obter recursos: {str(e)}'
+        }), 500
+
+@app.route('/api/analyze-log-file', methods=['POST'])
+def analyze_log_file():
+    """Analisa um arquivo de log específico enviado pelo frontend"""
+    try:
+        payload = request.get_json(force=True) or {}
+        filename = payload.get('filename', 'arquivo_desconhecido')
+        content = payload.get('content', '')
+        file_size = payload.get('size', 0)
+        
+        if not content:
+            return jsonify({
+                'status': 'error',
+                'message': 'Conteúdo do arquivo vazio ou não fornecido'
+            }), 400
+            
+        logging.info(f"📂 Analisando arquivo: {filename} ({file_size} bytes)")
+        
+        # Adiciona log da ação
+        analysis_log = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'INFO',
+            'message': f'📂 ANÁLISE DE ARQUIVO INICIADA: {filename} ({file_size} bytes)',
+            'source': 'file-analyzer',
+            'is_real': False
+        }
+        logs_data.append(analysis_log)
+        save_alert_to_db(analysis_log)
+        
+        # Processa o conteúdo
+        lines = content.split('\n')
+        stats = {
+            'total_lines': len(lines),
+            'errors_found': 0,
+            'warnings_found': 0, 
+            'info_logs': 0,
+            'anomalies_found': 0,
+            'patterns_detected': []
+        }
+        
+        anomalies_detected = []
+        
+        # Analisa cada linha
+        for i, line in enumerate(lines):
+            if not line.strip():
+                continue
+                
+            line_lower = line.lower()
+            
+            # Conta tipos de log
+            if any(word in line_lower for word in ['error', 'fail', 'denied', 'invalid', 'unauthorized']):
+                stats['errors_found'] += 1
+            elif any(word in line_lower for word in ['warn', 'alert', 'suspicious', 'attempt']):
+                stats['warnings_found'] += 1
+            else:
+                stats['info_logs'] += 1
+            
+            # Detecta padrões de anomalia usando as mesmas regras do monitoramento
+            for rule_name, rule_config in real_time_monitoring.anomaly_detection_rules.items():
+                if re.search(rule_config["pattern"], line, re.IGNORECASE):
+                    stats['anomalies_found'] += 1
+                    
+                    # Extrai IP se possível
+                    ip_match = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', line)
+                    source_ip = ip_match.group(1) if ip_match else 'desconhecido'
+                    
+                    anomaly_info = {
+                        'rule': rule_name,
+                        'description': rule_config['description'],
+                        'severity': rule_config['severity'],
+                        'line_number': i + 1,
+                        'source_ip': source_ip,
+                        'log_content': line[:100] + '...' if len(line) > 100 else line
+                    }
+                    
+                    anomalies_detected.append(anomaly_info)
+                    
+                    if rule_name not in stats['patterns_detected']:
+                        stats['patterns_detected'].append(rule_name)
+        
+        # Adiciona logs dos resultados
+        if stats['anomalies_found'] > 0:
+            anomaly_log = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'WARNING',
+                'message': f'⚠️ ANOMALIAS NO ARQUIVO: {stats["anomalies_found"]} padrões suspeitos em {filename}',
+                'source': 'file-analyzer',
+                'is_real': False
+            }
+            logs_data.append(anomaly_log)
+            save_alert_to_db(anomaly_log)
+            
+            # Adiciona alerta de cada anomalia detectada
+            for anomaly in anomalies_detected[:5]:  # Máximo 5 para não spammar
+                anomaly_detail_log = {
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'level': 'CRITICAL' if anomaly['severity'] == 'CRITICAL' else 'WARNING',
+                    'message': f'🚨 {anomaly["description"]} - IP: {anomaly["source_ip"]} (Linha {anomaly["line_number"]})',
+                    'source': 'anomaly-detector',
+                    'is_real': False,
+                    'type': 'file_analysis_anomaly',
+                    'severity_score': 80 if anomaly['severity'] == 'CRITICAL' else 60
+                }
+                logs_data.append(anomaly_detail_log)
+                save_alert_to_db(anomaly_detail_log)
+        
+        # Log de conclusão
+        completion_log = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'SUCCESS',
+            'message': f'✅ ANÁLISE CONCLUÍDA: {filename} - {stats["total_lines"]} linhas, {stats["anomalies_found"]} anomalias',
+            'source': 'file-analyzer',
+            'is_real': False
+        }
+        logs_data.append(completion_log)
+        
+        # Envia logs para Wazuh se habilitado
+        for anomaly in anomalies_detected[:3]:  # Envia as 3 principais para Wazuh
+            wazuh_log = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'WARNING',
+                'message': f'File analysis detected: {anomaly["description"]} in {filename}',
+                'source': 'file-analysis-wazuh',
+                'is_real': False,
+                'anomaly_type': anomaly['rule'],
+                'source_ip': anomaly['source_ip']
+            }
+            send_enhanced_log_to_wazuh(wazuh_log)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Análise de {filename} concluída com sucesso',
+            'stats': stats,
+            'anomalies': anomalies_detected[:10],  # Retorna até 10 anomalias principais
+            'filename': filename,
+            'analyzed_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Erro ao analisar arquivo: {e}")
+        
+        error_log = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'ERROR',
+            'message': f'❌ ERRO NA ANÁLISE DE ARQUIVO: {str(e)}',
+            'source': 'file-analyzer',
+            'is_real': False
+        }
+        logs_data.append(error_log)
+        
+        return jsonify({
+            'status': 'error',
+            'message': f'Erro ao analisar arquivo: {str(e)}'
         }), 500
 
 if __name__ == '__main__':

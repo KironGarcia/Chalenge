@@ -315,7 +315,7 @@ body {
 }
 
 .wazuh-title::before {
-  content: '🛡️';
+  content: '';
     font-size: 2rem;
   filter: drop-shadow(0 0 10px var(--accent-glow));
 }
@@ -1271,4 +1271,200 @@ body {
 
 .siem-metric-value.low {
   color: var(--status-success);
+}
+
+/* === ESTILOS ESPECIAIS PARA LOGS DO FLUXO WAZUH/IA === */
+.log-entry.wazuh-log {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(6, 182, 212, 0.05));
+  border-left: 3px solid var(--status-info) !important;
+}
+
+.log-entry.anomaly-log {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.08));
+  border-left: 3px solid var(--status-warning) !important;
+  animation: anomalyPulse 2s ease-in-out infinite;
+}
+
+.log-entry.auto-response-log {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.08));
+  border-left: 3px solid var(--status-success) !important;
+}
+
+.log-entry.ia-decision-log {
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 255, 136, 0.1));
+  border-left: 3px solid var(--accent-primary) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+}
+
+/* Animação para logs de anomalia */
+@keyframes anomalyPulse {
+  0% { 
+    box-shadow: 0 0 5px rgba(251, 191, 36, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); 
+  }
+  100% { 
+    box-shadow: 0 0 5px rgba(251, 191, 36, 0.3); 
+  }
+}
+
+/* Destaque extra para logs críticos */
+.log-entry .level.critical {
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--status-error);
+  border: 1px solid var(--status-error);
+  animation: criticalBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes criticalBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Indicadores visuais para diferentes tipos de fonte */
+.log-entry[data-source^="wazuh-"]::before {
+  content: "🛡️";
+  margin-right: 8px;
+}
+
+.log-entry[data-source^="anomaly-"]::before {
+  content: "⚠️";
+  margin-right: 8px;
+}
+
+.log-entry[data-source^="auto-response"]::before {
+  content: "⚡";
+  margin-right: 8px;
+}
+
+.log-entry[data-source^="ia-decision"]::before {
+  content: "🤖";
+  margin-right: 8px;
+}
+
+/* Status do monitoramento */
+.monitoring-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-left: 8px;
+}
+
+.monitoring-status.active {
+  background: linear-gradient(45deg, var(--status-success), var(--accent-tertiary));
+  color: var(--bg-primary);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+  animation: pulse 2s infinite;
+}
+
+.monitoring-status.inactive {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--text-muted);
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 10px rgba(0, 255, 136, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.6); }
+  100% { box-shadow: 0 0 10px rgba(0, 255, 136, 0.4); }
+}
+
+/* === SECCIÓN ANALIZAR ARQUIVO DE LOG === */
+.log-analyzer-section {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(6, 182, 212, 0.02) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin-top: var(--space-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.log-analyzer-section::before {
+  content: 'FILE ANALYZER';
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--status-info);
+  background: var(--bg-primary);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--status-info);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.log-analyzer-section h4 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-lg);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.file-analyzer-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.selected-file-name {
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: rgba(0, 255, 136, 0.1);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  flex: 1;
+  min-width: 200px;
+}
+
+.selected-file-name:empty {
+  display: none;
+}
+
+/* Estilos para botões desabilitados */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Animação para seleção de arquivo */
+.file-analyzer-controls .btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  transition: var(--transition-normal);
+}
+
+/* Responsividade para a seção de análise */
+@media (max-width: 768px) {
+  .file-analyzer-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+  
+  .file-analyzer-controls .btn {
+    width: 100%;
+  }
+  
+  .selected-file-name {
+    min-width: auto;
+    text-align: center;
+  }
 }

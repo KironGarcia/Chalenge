@@ -12,6 +12,7 @@ class AgenteIA {
         this.wazuhConnected = false;
         this.startTime = Date.now();
         this.logCount = 0;
+        this.lastLogTimestamp = ''; // Para evitar parpadeo en logs
         this.init();
     }
     
@@ -133,7 +134,14 @@ class AgenteIA {
             await this.checkStatus();
             await this.updateWazuhStatus();
             this.updateMetrics();
-        }, 5000); // Atualiza a cada 5 segundos
+        }, 5000); // Status general cada 5 segundos
+        
+        // Logs en tiempo real MAS FRECUENTES solo cuando monitoreando
+        setInterval(async () => {
+            if (this.isMonitoring) {
+                await this.updateRealtimeLogs();
+            }
+        }, 3000); // Logs cada 3 segundos solo si está monitoreando
     }
     
     startUptimeCounter() {
@@ -461,12 +469,161 @@ class AgenteIA {
         }
     }
     
+    async updateRealtimeLogs() {
+        /**
+         * Atualiza logs em tempo real durante o monitoramento SEM parpadeo
+         */
+        try {
+            if (!this.isMonitoring) return;
+            
+            const response = await fetch(`${this.apiUrl}/api/logs`);
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.logs && data.logs.length > 0) {
+                    const container = document.getElementById('logs-container');
+                    
+                    // Guarda o último timestamp que temos
+                    if (!this.lastLogTimestamp) {
+                        this.lastLogTimestamp = '';
+                    }
+                    
+                    // Filtra apenas logs NUEVOS que no tenemos aún
+                    const newLogs = data.logs.filter(log => {
+                        // Si no tenemos timestamp previo, tomar solo los primeros 5
+                        if (!this.lastLogTimestamp) {
+                            return true;
+                        }
+                        // Si ya tenemos timestamp, solo logs más recientes
+                        return log.timestamp > this.lastLogTimestamp && 
+                               !this.hasLogEntry(log.timestamp, log.message);
+                    });
+                    
+                    // Solo agrega NUEVOS logs sin borrar los existentes
+                    if (newLogs.length > 0) {
+                        // Si es la primera carga, limitar a 5 logs para no spammar
+                        const logsToAdd = !this.lastLogTimestamp ? newLogs.slice(0, 5) : newLogs;
+                        
+                        logsToAdd.forEach(log => {
+                            this.addLogEntryDirect(log.timestamp, log.level, log.message, log.source);
+                        });
+                        
+                        // Actualiza el último timestamp
+                        if (data.logs.length > 0) {
+                            this.lastLogTimestamp = data.logs[0].timestamp;
+                        }
+                    }
+                    
+                    // Atualiza contador de logs
+                    this.safeUpdateText('logs-count', data.total_logs.toLocaleString());
+                    
+                    // Atualiza status do monitoramento
+                    if (data.monitoring_active) {
+                        this.isMonitoring = true;
+                        this.safeUpdateText('monitoring-status', 'ATIVO');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Erro ao atualizar logs em tempo real:', error);
+        }
+    }
+    
+    hasLogEntry(timestamp, message) {
+        /**
+         * Verifica se já temos um log com esse timestamp e mensagem
+         */
+        const container = document.getElementById('logs-container');
+        const entries = container.querySelectorAll('.log-entry');
+        
+        for (let entry of entries) {
+            const entryTimestamp = entry.querySelector('.timestamp')?.textContent;
+            const entryMessage = entry.querySelector('.message')?.textContent;
+            
+            if (entryTimestamp === timestamp && entryMessage?.includes(message.substring(0, 50))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    addLogEntryDirect(timestamp, level, message, source = '') {
+        /**
+         * Adiciona log diretamente SEM parpadeo - novos logs no topo
+         */
+        const container = document.getElementById('logs-container');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        
+        // Adiciona classes especiais para diferentes tipos de fonte
+        if (source && source.includes('wazuh')) {
+            entry.classList.add('wazuh-log');
+        }
+        if (source && source.includes('anomaly')) {
+            entry.classList.add('anomaly-log');
+        }
+        if (source && source.includes('auto-response')) {
+            entry.classList.add('auto-response-log');
+        }
+        if (source && source.includes('ia-decision')) {
+            entry.classList.add('ia-decision-log');
+        }
+        
+        // Adiciona ícones baseados no nível e fonte
+        const icons = {
+            'INFO': '📊',
+            'SUCCESS': '✅',
+            'WARNING': '⚠️',
+            'ERROR': '❌',
+            'CRITICAL': '🚨'
+        };
+        
+        // Ícones especiais para fontes específicas
+        if (source && source.includes('wazuh')) {
+            icons['INFO'] = '📡';
+            icons['WARNING'] = '📥';
+        }
+        if (source && source.includes('anomaly')) {
+            icons['CRITICAL'] = '🚨';
+            icons['WARNING'] = '🔍';
+        }
+        if (source && source.includes('auto-response')) {
+            icons['WARNING'] = '⚡';
+        }
+        
+        const icon = icons[level] || '📊';
+        
+        entry.innerHTML = `
+            <span class="timestamp">${timestamp}</span>
+            <span class="level ${level.toLowerCase()}">${level}</span>
+            <span class="message">${icon} ${message}</span>
+        `;
+        
+        // INSERTAR NUEVOS LOGS AL PRINCIPIO (más recientes arriba)
+        container.insertBefore(entry, container.firstChild);
+        
+        // Animación suave para nuevos logs
+        entry.style.opacity = '0';
+        entry.style.transform = 'translateY(-10px)';
+        
+        requestAnimationFrame(() => {
+            entry.style.transition = 'all 0.3s ease';
+            entry.style.opacity = '1';
+            entry.style.transform = 'translateY(0)';
+        });
+        
+        // Limita a 50 logs - remueve del final
+        while (container.children.length > 50) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
     addWelcomeMessage() {
         setTimeout(() => {
             this.addLogEntry(
                 new Date().toLocaleString('pt-BR'),
                 'SUCCESS',
-                '🛡️ Security Operations Center online - Monitoramento ativo'
+                'Security Operations Center online - Monitoramento ativo'
             );
         }, 1000);
     }
@@ -672,15 +829,38 @@ async function testEmail() {
 async function startRealTimeMonitoring() {
     console.log("🔍 Iniciando monitoramento em tempo real...");
     
+    // Limpa logs estáticos iniciais para evitar confusão
+    const container = document.getElementById('logs-container');
+    container.innerHTML = '';
+    
     agente.addLogEntry(
         new Date().toLocaleString("pt-BR"),
         "INFO",
-        "🔍 Solicitando início do monitoramento em tempo real"
+        "🔍 Iniciando sistema de monitoramento em tempo real com integração Wazuh"
     );
     
     agente.showNotification("Iniciando monitoramento em tempo real...", "info");
     
     try {
+        // 1. PRIMEIRO: Coleta automática de logs existentes
+        agente.addLogEntry(
+            new Date().toLocaleString("pt-BR"),
+            "INFO",
+            "📂 COLETA AUTOMÁTICA: Carregando logs existentes do sistema..."
+        );
+        
+        const collectResponse = await fetch(`${agente.apiUrl}/api/collect`);
+        const collectData = await collectResponse.json();
+        
+        if (collectData.status === 'success') {
+            agente.addLogEntry(
+                new Date().toLocaleString("pt-BR"),
+                "SUCCESS",
+                `✅ LOGS COLETADOS: ${collectData.stats?.total_new_logs || 'N/A'} logs processados automaticamente`
+            );
+        }
+        
+        // 2. SEGUNDO: Inicia monitoramento em tempo real
         const response = await fetch(`${agente.apiUrl}/api/monitoring/start`, {
             method: "POST",
             headers: {
@@ -691,13 +871,35 @@ async function startRealTimeMonitoring() {
         const data = await response.json();
         
         if (data.status === "success") {
+            // Ativa flag de monitoramento
+            agente.isMonitoring = true;
+            
             agente.addLogEntry(
                 new Date().toLocaleString("pt-BR"),
                 "SUCCESS",
-                "✅ Monitoramento em tempo real iniciado com sucesso"
+                `✅ MONITORAMENTO ATIVO - ${data.rules_active} regras de detecção carregadas`
             );
             
-            agente.showNotification("Monitoramento em tempo real ativo!", "success");
+            agente.addLogEntry(
+                new Date().toLocaleString("pt-BR"),
+                "INFO",
+                `📡 Integração SIEM: ${data.wazuh_enabled ? 'ATIVA' : 'DESABILITADA'} - Logs sendo enviados para análise`
+            );
+            
+            agente.addLogEntry(
+                new Date().toLocaleString("pt-BR"),
+                "SUCCESS",
+                "🎯 SISTEMA LISTO: Executando monitoramento de ameaças em tempo real!"
+            );
+            
+            agente.showNotification("Sistema pronto para demonstração!", "success");
+            
+            // Atualiza botões
+            const startBtn = document.querySelector('button[onclick="startRealTimeMonitoring()"]');
+            const stopBtn = document.querySelector('button[onclick="stopRealTimeMonitoring()"]');
+            if (startBtn) startBtn.style.opacity = '0.5';
+            if (stopBtn) stopBtn.style.opacity = '1';
+            
         } else {
             throw new Error(data.message || "Erro desconhecido");
         }
@@ -706,7 +908,7 @@ async function startRealTimeMonitoring() {
         agente.addLogEntry(
             new Date().toLocaleString("pt-BR"),
             "ERROR",
-            `❌ Erro ao iniciar monitoramento RT: ${error.message}`
+            `❌ ERRO NO MONITORAMENTO: ${error.message}`
         );
         
         agente.showNotification("Erro ao iniciar monitoramento", "error");
@@ -715,6 +917,9 @@ async function startRealTimeMonitoring() {
 
 async function stopRealTimeMonitoring() {
     console.log("🛑 Parando monitoramento em tempo real...");
+    
+    // Para el parpadeo inmediatamente
+    agente.isMonitoring = false;
     
     agente.addLogEntry(
         new Date().toLocaleString("pt-BR"),
@@ -737,11 +942,17 @@ async function stopRealTimeMonitoring() {
         if (data.status === "success") {
             agente.addLogEntry(
                 new Date().toLocaleString("pt-BR"),
-                "INFO",
-                "🛑 Monitoramento em tempo real parado com sucesso"
+                "WARNING",
+                "🛑 Monitoramento em tempo real PARADO - Sistema em modo passivo"
             );
             
-            agente.showNotification("Monitoramento em tempo real parado", "warning");
+            // Actualiza botones
+            const startBtn = document.querySelector('button[onclick="startRealTimeMonitoring()"]');
+            const stopBtn = document.querySelector('button[onclick="stopRealTimeMonitoring()"]');
+            if (startBtn) startBtn.style.opacity = '1';
+            if (stopBtn) stopBtn.style.opacity = '0.5';
+            
+            agente.showNotification("Monitoramento parado com sucesso", "info");
         } else {
             throw new Error(data.message || "Erro desconhecido");
         }
@@ -750,55 +961,138 @@ async function stopRealTimeMonitoring() {
         agente.addLogEntry(
             new Date().toLocaleString("pt-BR"),
             "ERROR",
-            `❌ Erro ao parar monitoramento RT: ${error.message}`
+            `❌ Erro ao parar monitoramento: ${error.message}`
         );
         
         agente.showNotification("Erro ao parar monitoramento", "error");
     }
 }
 
-async function collectLogs() {
-    console.log('🔄 Coletando logs manualmente...');
+// ===============================================
+// ANÁLISE DE ARQUIVOS DE LOG ESPECÍFICOS
+// ===============================================
+
+function handleLogFileSelection() {
+    const fileInput = document.getElementById('logFileInput');
+    const fileName = document.getElementById('selectedFileName');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    
+    if (fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        fileName.textContent = `📄 ${file.name}`;
+        analyzeBtn.disabled = false;
+        analyzeBtn.style.opacity = '1';
+        
+        agente.addLogEntry(
+            new Date().toLocaleString('pt-BR'),
+            'INFO',
+            `📁 ARQUIVO SELECIONADO: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`
+        );
+    } else {
+        fileName.textContent = '';
+        analyzeBtn.disabled = true;
+        analyzeBtn.style.opacity = '0.5';
+    }
+}
+
+async function analyzeSelectedLogFile() {
+    const fileInput = document.getElementById('logFileInput');
+    
+    if (!fileInput.files || !fileInput.files[0]) {
+        agente.showNotification('Nenhum arquivo selecionado!', 'error');
+        return;
+    }
+    
+    const file = fileInput.files[0];
     
     agente.addLogEntry(
         new Date().toLocaleString('pt-BR'),
         'INFO',
-        '🔄 Coleta manual de logs iniciada'
+        `🔍 ANALISANDO ARQUIVO: ${file.name} - Processando conteúdo...`
     );
     
-    agente.showNotification('Coletando logs de todas as fontes...', 'info');
+    agente.showNotification('Analisando arquivo de log...', 'info');
     
     try {
-        const response = await fetch(`${agente.apiUrl}/api/collect`);
+        // Lê o arquivo
+        const fileContent = await readFileContent(file);
+        
+        // Envia para o backend para análise
+        const response = await fetch(`${agente.apiUrl}/api/analyze-log-file`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                filename: file.name,
+                content: fileContent,
+                size: file.size
+            })
+        });
+        
         const data = await response.json();
         
         if (data.status === 'success') {
             agente.addLogEntry(
                 new Date().toLocaleString('pt-BR'),
                 'SUCCESS',
-                `✅ Coleta concluída: ${data.stats?.total_new_logs || 'N/A'} novos logs`
+                `✅ ANÁLISE CONCLUÍDA: ${data.stats?.total_lines || 0} linhas processadas`
             );
             
-            agente.addActionEntry(`Coleta manual: ${data.stats?.total_new_logs || 0} novos logs processados`);
-            agente.showNotification('Coleta de logs concluída com sucesso!', 'success');
-            
-            // Atualiza métricas
-            if (data.stats) {
-                agente.updateSourceStatus(data.stats);
+            if (data.stats?.anomalies_found > 0) {
+                agente.addLogEntry(
+                    new Date().toLocaleString('pt-BR'),
+                    'WARNING',
+                    `⚠️ ANOMALIAS ENCONTRADAS: ${data.stats.anomalies_found} padrões suspeitos detectados`
+                );
             }
+            
+            if (data.stats?.errors_found > 0) {
+                agente.addLogEntry(
+                    new Date().toLocaleString('pt-BR'),
+                    'ERROR',
+                    `❌ ERROS DETECTADOS: ${data.stats.errors_found} erros críticos no arquivo`
+                );
+            }
+            
+            // Mostra resumo das descobertas
+            agente.addLogEntry(
+                new Date().toLocaleString('pt-BR'),
+                'INFO',
+                `📊 RESUMO: ${data.stats?.warnings || 0} warnings, ${data.stats?.info_logs || 0} logs informativos`
+            );
+            
+            agente.showNotification('Análise de arquivo concluída!', 'success');
+            
         } else {
-            throw new Error(data.message || 'Erro na coleta');
+            throw new Error(data.message || 'Erro na análise');
         }
-    } catch (error) {
-        console.error('❌ Erro na coleta:', error);
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-            'ERROR',
-            `❌ Erro na coleta: ${error.message}`
-        );
         
-        agente.showNotification('Erro na coleta de logs', 'error');
+    } catch (error) {
+        console.error('❌ Erro na análise do arquivo:', error);
+        agente.addLogEntry(
+            new Date().toLocaleString('pt-BR'),
+            'ERROR',
+            `❌ ERRO NA ANÁLISE: ${error.message}`
+        );
+        agente.showNotification('Erro ao analisar arquivo', 'error');
     }
+}
+
+async function readFileContent(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            resolve(e.target.result);
+        };
+        
+        reader.onerror = function(e) {
+            reject(new Error('Erro ao ler arquivo'));
+        };
+        
+        reader.readAsText(file);
+    });
 }
 
 // ===============================================

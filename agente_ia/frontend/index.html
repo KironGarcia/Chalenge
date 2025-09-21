@@ -34,9 +34,22 @@
                     <button class="btn btn-success" onclick="testEmail()">
                         Testar Alertas
                     </button>
-                    <button class="btn btn-secondary" onclick="collectLogs()">
-                        Coletar Logs
-                    </button>
+                </div>
+                
+                <!-- Nova funcionalidade: Analizar arquivo de log -->
+                <div class="log-analyzer-section">
+                    <h4>Analizar Arquivo de Log Específico</h4>
+                    <div class="file-analyzer-controls">
+                        <input type="file" id="logFileInput" accept=".txt,.log,.json" 
+                               style="display: none;" onchange="handleLogFileSelection()">
+                        <button class="btn btn-secondary" onclick="document.getElementById('logFileInput').click()">
+                            📁 Selecionar Arquivo
+                        </button>
+                        <button class="btn btn-primary" onclick="analyzeSelectedLogFile()" id="analyzeBtn" disabled>
+                            Analisar Log
+                        </button>
+                        <span id="selectedFileName" class="selected-file-name"></span>
+                    </div>
                 </div>
             </section>
 
