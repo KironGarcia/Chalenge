@@ -653,9 +653,9 @@ def status():
             'total_logs': len(logs_data),
             'real_logs': real_logs_count,
             'sources': {
-                'system': random.randint(50, 200),
+                'system': len([log for log in logs_data if log.get('source', '').startswith('system')]),
                 'university_files': real_logs_count,
-                'syslog': random.randint(10, 50)
+                'syslog': len([log for log in logs_data if log.get('source', '').startswith('syslog')])
             },
             'syslog_server_running': True,
             'real_logs_loaded': real_logs_loaded
@@ -704,42 +704,31 @@ def get_logs():
 
 @app.route('/api/collect', methods=['POST', 'GET'])
 def collect_logs():
-    """Endpoint para coleta manual de logs (REAIS + SIMULADOS)"""
+    """Endpoint para coleta manual de logs REAIS APENAS"""
     try:
         # Força recarregamento dos logs reais
         global real_logs_loaded
         real_logs_loaded = False
         load_real_logs()
         
-        # Adiciona alguns logs de sistema simulados
-        system_logs_count = random.randint(5, 15)
-        for i in range(system_logs_count):
-            logs_data.append({
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'level': random.choice(['INFO', 'WARNING', 'SUCCESS']),
-                'message': f'Log de sistema coletado #{len(logs_data) + i}',
-                'source': 'system-monitor',
-                'is_real': False
-            })
-        
-        # Calcula estatísticas
+        # Calcula estatísticas apenas de logs reais
         real_logs_count = len([log for log in logs_data if log.get('is_real')])
-        simulated_count = len([log for log in logs_data if not log.get('is_real')])
+        system_logs_count = len([log for log in logs_data if log.get('source', '').startswith('system')])
+        syslog_logs_count = len([log for log in logs_data if log.get('source', '').startswith('syslog')])
         
         stats = {
             'total_new_logs': len(logs_data),
             'real_logs': real_logs_count,
-            'system_logs': simulated_count,
+            'system_logs': system_logs_count,
             'sources': {
                 'university_files': real_logs_count,
-                'system': simulated_count,
-                'syslog': random.randint(5, 25)
+                'system': system_logs_count,
+                'syslog': syslog_logs_count
             }
         }
         
-        logging.info(f"📊 Coleta completa: {real_logs_count} logs reais + {simulated_count} sistema")
+        logging.info(f"📊 Coleta completa: {real_logs_count} logs reais processados")
         
-        # Log da ação
         # Adiciona log da ação com persistência
         log_entry = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -758,7 +747,7 @@ def collect_logs():
         
         return jsonify({
             'status': 'success',
-            'message': 'Coleta de logs executada com sucesso (dados REAIS + sistema)',
+            'message': 'Coleta de logs executada com sucesso (apenas dados REAIS)',
             'stats': stats
         })
         
@@ -874,23 +863,8 @@ def get_anomalies():
             'real_data': True
         })
     
-    # 3. Simula anomalia de sistema (para demonstrar detecção híbrida)
-    system_anomaly = {
-        'id': f'system_monitor_{datetime.now().strftime("%Y%m%d_%H%M")}',
-        'type': 'system_monitoring',
-        'severity': 'BAIXA',
-        'description': 'Sistema funcionando normalmente - monitoramento ativo',
-        'timestamp': datetime.now().isoformat(),
-        'confidence': 0.95,
-        'details': {
-            'total_logs_analyzed': len(logs_data),
-            'real_logs_processed': len([log for log in logs_data if log.get('is_real')]),
-            'monitoring_status': 'active'
-        },
-        'real_data': False
-    }
-    
-    all_anomalies = current_anomalies + [system_anomaly] + anomalies_data
+    # Solo anomalías reales detectadas en los datos
+    all_anomalies = current_anomalies + anomalies_data
     
     return jsonify({
         'status': 'success',
@@ -1691,6 +1665,47 @@ def test_wazuh_rule():
         return jsonify({
             'status': 'error',
             'message': f'Erro ao testar regra: {str(e)}'
+        }), 500
+
+@app.route('/api/system-resources')
+def get_system_resources():
+    """Obtém recursos reais do sistema usando psutil"""
+    try:
+        # CPU usage real
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory usage real
+        memory = psutil.virtual_memory()
+        memory_used_mb = memory.used / (1024 * 1024)
+        memory_percent = memory.percent
+        
+        # Disk usage
+        disk = psutil.disk_usage('/')
+        disk_percent = disk.percent
+        
+        # Network stats
+        net_io = psutil.net_io_counters()
+        
+        # Process count
+        process_count = len(psutil.pids())
+        
+        return jsonify({
+            'status': 'success',
+            'cpu_usage': cpu_percent,
+            'memory_usage': memory_used_mb,
+            'memory_percent': memory_percent,
+            'disk_usage_percent': disk_percent,
+            'network_bytes_sent': net_io.bytes_sent,
+            'network_bytes_recv': net_io.bytes_recv,
+            'process_count': process_count,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Erro ao obter recursos do sistema: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Erro ao obter recursos: {str(e)}'
         }), 500
 
 if __name__ == '__main__':

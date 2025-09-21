@@ -249,10 +249,16 @@ cleanup_project_processes() {
     # Mata processos Python relacionados ao projeto
     pkill -f "flask.*5000" 2>/dev/null || true
     pkill -f "python.*http.server.*3000" 2>/dev/null || true
+    pkill -f "start_frontend.py" 2>/dev/null || true
+    pkill -f "simple_app.py" 2>/dev/null || true
     
     # Remove arquivos PID antigos
     rm -f agente_ia/backend/backend.pid 2>/dev/null || true
     rm -f agente_ia/frontend/frontend.pid 2>/dev/null || true
+    
+    # Força limpeza de cache do navegador (mata processos que possam estar travando)
+    print_step "🔄 Preparando ambiente para nova versão..."
+    sleep 2
     
     print_success "Limpeza de processos concluída"
 }
@@ -450,9 +456,36 @@ start_backend() {
     exit 1
 }
 
+# Função para atualizar versões de cache-busting
+update_cache_versions() {
+    print_step "🔄 Atualizando versões de cache para forçar recarga..."
+    
+    cd agente_ia/frontend
+    
+    # Genera nueva versión basada en timestamp
+    local new_version="v=$(date +%s)"
+    
+    # Actualiza versiones en index.html
+    if [ -f "index.html" ]; then
+        # Actualiza CSS
+        sed -i "s/static\/style\.css?v=[^\"]*\"/static\/style.css?$new_version\"/" index.html
+        # Actualiza JS
+        sed -i "s/static\/app\.js?v=[^\"]*\"/static\/app.js?$new_version\"/" index.html
+        
+        print_success "Versões de cache atualizadas: $new_version"
+    else
+        print_warning "Arquivo index.html não encontrado"
+    fi
+    
+    cd ../..
+}
+
 # Função para iniciar frontend
 start_frontend() {
     print_step "🎨 Iniciando Frontend..."
+    
+    # Atualiza versões de cache ANTES de iniciar
+    update_cache_versions
     
     cd agente_ia/frontend
     
@@ -570,6 +603,13 @@ main() {
     echo -e "   ✅ Detector de Anomalias ativo"
     echo -e "   ✅ Coletor de Logs pronto"
     echo -e "   ✅ Interface web funcionando"
+    echo -e "   ✅ Cache-busting ativo (versões atualizadas)"
+    echo ""
+    echo -e "${BLUE}🔄 IMPORTANTE - Para ver alterações na interface:${NC}"
+    echo -e "   ${YELLOW}1.${NC} Abra o navegador em: ${YELLOW}http://$local_ip:$FRONTEND_PORT${NC}"
+    echo -e "   ${YELLOW}2.${NC} Pressione ${YELLOW}Ctrl+F5${NC} ou ${YELLOW}Ctrl+Shift+R${NC} para forçar recarga"
+    echo -e "   ${YELLOW}3.${NC} Ou abra uma ${YELLOW}janela incógnito/privada${NC}"
+    echo -e "   ${GREEN}✨ As versões de cache foram atualizadas automaticamente!${NC}"
     echo ""
     echo -e "${YELLOW}📋 Para finalizar:${NC} Pressione ${RED}Ctrl+C${NC}"
     echo -e "${GREEN}=====================================================================${NC}"

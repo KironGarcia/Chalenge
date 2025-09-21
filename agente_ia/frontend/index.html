@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SHILD IA - Security Operations Center</title>
-    <link rel="stylesheet" href="static/style.css?v1758461000">
+    <link rel="stylesheet" href="static/style.css?v1758466000">
     <!-- Google Fonts para tipografia profissional -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>��️</text></svg>">
@@ -26,18 +26,66 @@
             <section class="main-controls">
                 <div class="control-buttons-grid">
                     <button class="btn btn-primary" onclick="startRealTimeMonitoring()">
-                        ▶️ Iniciar Monitoramento
+                        Iniciar Monitoramento
                     </button>
                     <button class="btn btn-stop" onclick="stopRealTimeMonitoring()">
-                        ⏹️ Parar Monitoramento
+                        Parar Monitoramento
                     </button>
                     <button class="btn btn-success" onclick="testEmail()">
-                        📧 Testar Alertas
+                        Testar Alertas
                     </button>
                     <button class="btn btn-secondary" onclick="collectLogs()">
-                        🔄 Coletar Logs
+                        Coletar Logs
                     </button>
                 </div>
+            </section>
+
+            <!-- Logs em Tempo Real -->
+            <section class="logs-section">
+                <h3>Feed de Logs em Tempo Real</h3>
+                <div class="logs-container" id="logs-container">
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:15</span>
+                        <span class="level info">INFO</span>
+                        <span class="message">Sistema SHILD IA iniciado com sucesso</span>
+                    </div>
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:16</span>
+                        <span class="level success">SUCCESS</span>
+                        <span class="message">Servidor de coleta de logs operacional</span>
+                    </div>
+                    <div class="log-entry">
+                        <span class="timestamp">2024-01-15 10:30:17</span>
+                        <span class="level info">INFO</span>
+                        <span class="message">Monitoramento de anomalias ativado</span>
+                    </div>
+                </div>
+            </section>
+
+
+
+            <!-- Seção de Ações Automáticas -->
+            <section class="auto-actions-section" id="auto-actions">
+                <h3>⚡ Ações Automáticas Executadas</h3>
+                <div id="auto-actions-list">
+                    <div class="log-entry">
+                        <span class="timestamp">Aguardando ações...</span>
+                        <span class="level info">READY</span>
+                        <span class="message">Sistema preparado para resposta automática</span>
+                    </div>
+                </div>
+                
+                <!-- Seção de Aprovações Pendentes -->
+                <div id="pending-approvals" class="mt-lg">
+                    <h4 style="color: var(--accent-primary); margin-bottom: 16px;">Aguardando Aprovação Humana</h4>
+                    <div id="approval-list">
+                        <div class="log-entry">
+                            <span class="timestamp">Nenhuma aprovação pendente</span>
+                            <span class="level success">OK</span>
+                            <span class="message">Todas as ações críticas foram processadas</span>
+                        </div>
+                    </div>
+            </div>
             </section>
 
             <!-- Seção SIEM Integration (Preparada para Wazuh) -->
@@ -47,25 +95,25 @@
                 <div class="dashboard-grid">
                     <!-- Status de Segurança -->
                     <div class="card">
-                        <h3>🛡️ Threat Level</h3>
+                        <h3>Threat Level</h3>
                         <div id="threat-level" class="text-accent">LOW</div>
                     </div>
                     
                     <!-- Alertas Críticos -->
                     <div class="card">
-                        <h3>⚠️ Critical Alerts</h3>
+                        <h3>Critical Alerts</h3>
                         <div id="critical-alerts">0</div>
                     </div>
                     
                     <!-- Eventos SIEM -->
                     <div class="card">
-                        <h3>📡 SIEM Events</h3>
+                        <h3>SIEM Events</h3>
                         <div id="siem-events">Aguardando...</div>
                     </div>
                     
                     <!-- Connection Status -->
                     <div class="card">
-                        <h3>🔗 SIEM Status</h3>
+                        <h3>SIEM Status</h3>
                         <div id="siem-status">Desconectado</div>
                 </div>
             </div>
@@ -73,19 +121,19 @@
                 <!-- Link para Wazuh Dashboard (oculto por padrão) -->
                 <div id="wazuh-detail-link" class="hidden" style="text-align: center; margin-top: 24px;">
                     <a href="#" target="_blank" class="btn btn-secondary">
-                        🔍 Ver Análise Detalhada no Wazuh
+                        Ver Análise Detalhada no Wazuh
                     </a>
                 </div>
             </section>
 
             <!-- Painel de Controle Wazuh -->
             <section class="wazuh-control-panel" style="margin-top: 32px;">
-                <h3>🛡️ Controle Manual de Ações SIEM</h3>
+                <h3>Controle Manual de Ações SIEM</h3>
                 <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
                     
                     <!-- Ações de Segurança -->
                     <div class="card">
-                        <h4>🚫 Bloqueio de IP</h4>
+                        <h4>Bloqueio de IP</h4>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
                             <input type="text" id="ip-to-block" placeholder="Ex: 192.168.1.100" 
                                    style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
@@ -97,7 +145,7 @@
 
                     <!-- Reinício de Serviços -->
                     <div class="card">
-                        <h4>🔄 Reiniciar Serviço</h4>
+                        <h4>Reiniciar Serviço</h4>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
                             <select id="service-to-restart" style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
                                 <option value="">Selecionar serviço...</option>
@@ -114,7 +162,7 @@
 
                     <!-- Isolamento de Processo -->
                     <div class="card">
-                        <h4>⏸️ Isolar Processo</h4>
+                        <h4>Isolar Processo</h4>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
                             <input type="text" id="pid-to-isolate" placeholder="Ex: 1234" 
                                    style="flex: 1; padding: 8px; background: var(--bg-tertiary); border: 1px solid var(--accent-primary); color: var(--text-primary); border-radius: 4px;">
@@ -126,64 +174,18 @@
 
                     <!-- Ações Críticas -->
                     <div class="card" style="border: 2px solid var(--status-warning);">
-                        <h4 style="color: var(--status-warning);">⚠️ Ações Críticas</h4>
+                        <h4 style="color: var(--status-warning);">Ações Críticas</h4>
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
                             <button class="btn-mini btn-danger" onclick="executeManualAction('shutdown_system', 'localhost')">
-                                🔴 Desligar Sistema
+                                Desligar Sistema
                             </button>
                             <button class="btn-mini btn-danger" onclick="executeManualAction('network_isolation', 'localhost')">
-                                🌐 Isolamento de Rede
+                                Isolamento de Rede
                             </button>
                             <small style="color: var(--text-muted); margin-top: 4px;">
-                                ⚠️ Ações críticas requerem aprovação
+                                Ações críticas requerem aprovação
                             </small>
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Seção de Ações Automáticas -->
-            <section class="auto-actions-section" id="auto-actions">
-                <h3>⚡ Ações Automáticas Executadas</h3>
-                <div id="auto-actions-list">
-                    <div class="log-entry">
-                        <span class="timestamp">Aguardando ações...</span>
-                        <span class="level info">READY</span>
-                        <span class="message">Sistema preparado para resposta automática</span>
-                    </div>
-                </div>
-                
-                <!-- Seção de Aprovações Pendentes -->
-                <div id="pending-approvals" class="mt-lg">
-                    <h4 style="color: var(--accent-primary); margin-bottom: 16px;">⏳ Aguardando Aprovação Humana</h4>
-                    <div id="approval-list">
-                        <div class="log-entry">
-                            <span class="timestamp">Nenhuma aprovação pendente</span>
-                            <span class="level success">OK</span>
-                            <span class="message">Todas as ações críticas foram processadas</span>
-                        </div>
-                    </div>
-            </div>
-            </section>
-            
-            <!-- Logs em Tempo Real -->
-            <section class="logs-section">
-                <h3>📋 Feed de Logs em Tempo Real</h3>
-                <div class="logs-container" id="logs-container">
-                    <div class="log-entry">
-                        <span class="timestamp">2024-01-15 10:30:15</span>
-                        <span class="level info">INFO</span>
-                        <span class="message">🚀 Sistema SHILD IA iniciado com sucesso</span>
-                    </div>
-                    <div class="log-entry">
-                        <span class="timestamp">2024-01-15 10:30:16</span>
-                        <span class="level success">SUCCESS</span>
-                        <span class="message">📡 Servidor Syslog ativo na porta 5140</span>
-                    </div>
-                    <div class="log-entry">
-                        <span class="timestamp">2024-01-15 10:30:17</span>
-                        <span class="level info">INFO</span>
-                        <span class="message">🔍 Monitoramento de anomalias ativado</span>
                     </div>
                 </div>
             </section>
@@ -304,6 +306,6 @@
         </main>
     </div>
     
-    <script src="static/app.js?v1758461500"></script>
+    <script src="static/app.js?v1758466000"></script>
 </body>
 </html>
