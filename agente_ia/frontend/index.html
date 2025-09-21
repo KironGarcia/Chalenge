@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AGENTE IA - Security Operations Center</title>
-    <link rel="stylesheet" href="static/style.css">
+    <title>SHILD IA - Security Operations Center</title>
+    <link rel="stylesheet" href="static/style.css?v1758461000">
     <!-- Google Fonts para tipografia profissional -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>��️</text></svg>">
 </head>
 <body>
     <div class="container">
         <!-- Header Cyberpunk -->
         <header class="header">
-            <h1>🤖 AGENTE IA</h1>
+            <h1>🛡️ SHILD IA</h1>
             <p>Security Operations Center - Sistema de Detecção Inteligente</p>
             <div class="status-indicator" id="status">
                 <span class="status-dot"></span>
@@ -22,27 +22,21 @@
         </header>
         
         <main class="main-content">
-            <!-- Dashboard Principal -->
-            <section class="dashboard-grid">
-                <!-- Métricas do Sistema -->
-                <div class="card">
-                    <h3>📊 Status do Sistema</h3>
-                    <div id="system-status">Iniciando...</div>
-                </div>
-                
-                <div class="card">
-                    <h3>🚨 Anomalias Detectadas</h3>
-                    <div id="anomalies-count">0</div>
-                </div>
-                
-                <div class="card">
-                    <h3>📈 Logs Processados</h3>
-                    <div id="logs-count">0</div>
-                </div>
-                
-                <div class="card">
-                    <h3>🎯 Precisão da IA</h3>
-                    <div id="ai-accuracy">95.3%</div>
+            <!-- Botões Principais do Sistema -->
+            <section class="main-controls">
+                <div class="control-buttons-grid">
+                    <button class="btn btn-primary" onclick="startRealTimeMonitoring()">
+                        ▶️ Iniciar Monitoramento
+                    </button>
+                    <button class="btn btn-stop" onclick="stopRealTimeMonitoring()">
+                        ⏹️ Parar Monitoramento
+                    </button>
+                    <button class="btn btn-success" onclick="testEmail()">
+                        📧 Testar Alertas
+                    </button>
+                    <button class="btn btn-secondary" onclick="collectLogs()">
+                        🔄 Coletar Logs
+                    </button>
                 </div>
             </section>
 
@@ -82,24 +76,6 @@
                         🔍 Ver Análise Detalhada no Wazuh
                     </a>
                 </div>
-            </section>
-
-            <!-- Ações do Sistema -->
-            <section class="actions">
-                <button class="btn btn-primary" onclick="startMonitoring()">
-                    ▶️ Iniciar Monitoramento
-                </button>
-                <button class="btn btn-secondary" onclick="stopMonitoring()">
-                    ⏹️ Parar Monitoramento
-                </button>
-                <button class="btn btn-success" onclick="testEmail()">
-                    📧 Testar Alertas
-                </button>
-                <button class="btn btn-secondary" onclick="collectLogs()">
-<button class="btn btn-warning" onclick="startRealTimeMonitoring()">🔍 Iniciar Monitoramento RT</button>
-                <button class="btn btn-danger" onclick="stopRealTimeMonitoring()">🛑 Parar Monitoramento RT</button>
-                    🔄 Coletar Logs
-                </button>
             </section>
 
             <!-- Painel de Controle Wazuh -->
@@ -197,7 +173,7 @@
                     <div class="log-entry">
                         <span class="timestamp">2024-01-15 10:30:15</span>
                         <span class="level info">INFO</span>
-                        <span class="message">🚀 Sistema Agente IA iniciado com sucesso</span>
+                        <span class="message">🚀 Sistema SHILD IA iniciado com sucesso</span>
                     </div>
                     <div class="log-entry">
                         <span class="timestamp">2024-01-15 10:30:16</span>
@@ -214,6 +190,28 @@
 
             <!-- Métricas Avançadas (Preparadas para expansão) -->
             <section class="dashboard-grid" style="margin-top: 48px;">
+                <div class="card">
+                    <h3>📊 Métricas do Sistema</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Anomalias:</span>
+                            <span id="anomalies-count" style="color: var(--status-warning);">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Logs:</span>
+                            <span id="logs-count" style="color: var(--accent-primary);">0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Precisão:</span>
+                            <span id="ai-accuracy" style="color: var(--status-success);">95.3%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Status:</span>
+                            <span style="color: var(--accent-primary);">Ativo</span>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="card">
                     <h3>🌐 Fontes de Coleta</h3>
                     <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: 0.9rem;">
@@ -298,6 +296,7 @@
                         <div style="display: flex; justify-content: space-between;">
                             <span style="color: var(--text-secondary);">Disponibilidade:</span>
                             <span id="availability" style="color: var(--status-success);">99.9%</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -305,6 +304,6 @@
         </main>
     </div>
     
-    <script src="static/app.js"></script>
+    <script src="static/app.js?v1758461500"></script>
 </body>
 </html>

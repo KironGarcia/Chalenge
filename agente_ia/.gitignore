@@ -1,0 +1,25 @@
+# ===================================================================
+# SHILD IA - .gitignore  
+# ===================================================================
+
+# === ARCHIVOS TEMPORALES ===
+*.pid
+*.log
+*.backup
+*.tmp
+.env
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+venv/
+venv_*/
+
+# === BASE DE DATOS ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === SISTEMA ===
+.DS_Store
+Thumbs.db 

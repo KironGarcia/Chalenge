@@ -7,11 +7,31 @@
 class AgenteIA {
     constructor() {
         this.apiUrl = window.location.protocol + '//' + window.location.hostname + ':5000';
+        console.log('🚀 SHILD IA iniciado - API URL:', this.apiUrl);
         this.isMonitoring = false;
         this.wazuhConnected = false;
         this.startTime = Date.now();
         this.logCount = 0;
         this.init();
+    }
+    
+    // Función segura para obtener elementos que pueden no existir
+    safeGetElement(id) {
+        const element = document.getElementById(id);
+        if (!element) {
+            console.warn(`⚠️ Elemento não encontrado: ${id}`);
+        }
+        return element;
+    }
+    
+    // Función segura para actualizar texto de elementos
+    safeUpdateText(id, text) {
+        const element = this.safeGetElement(id);
+        if (element) {
+            element.textContent = text;
+            return true;
+        }
+        return false;
     }
     
     async init() {
@@ -25,25 +45,32 @@ class AgenteIA {
     
     async checkStatus() {
         try {
+            console.log('🔍 Tentando conectar ao backend:', this.apiUrl);
             const response = await fetch(`${this.apiUrl}/api/status`);
+            console.log('📡 Response recebido:', response.status, response.statusText);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('📊 Dados do backend:', data);
+            console.log('🎯 Status do backend:', data.status);
             
             if (data.status === 'online') {
+                console.log('✅ Status é online, atualizando interface...');
                 this.updateStatusIndicator('online', 'Sistema Operacional');
                 this.updateSystemStatus('✅ Todos os componentes funcionando');
                 this.updateSourceStatus(data.collection_stats || {});
                 
                 // Atualiza contadores
                 if (data.collection_stats && data.collection_stats.total_logs) {
-                    document.getElementById('logs-count').textContent = data.collection_stats.total_logs.toLocaleString();
+                    this.safeUpdateText('logs-count', data.collection_stats.total_logs.toLocaleString());
                 }
                 
                 console.log('✅ Backend conectado com sucesso');
+            } else {
+                console.warn('⚠️ Status não é online:', data.status);
             }
         } catch (error) {
             console.error('❌ Erro ao verificar status:', error);
@@ -84,19 +111,19 @@ class AgenteIA {
     }
     
     updateSystemStatus(status) {
-        document.getElementById('system-status').textContent = status;
+        this.safeUpdateText('system-status', status);
     }
     
     updateSourceStatus(stats) {
         // Atualiza status das fontes de coleta
         const systemStatus = stats.syslog_server_running ? 'Ativo' : 'Inativo';
-        document.getElementById('source-system').textContent = systemStatus;
-        document.getElementById('source-syslog').textContent = systemStatus;
+        this.safeUpdateText('source-system', systemStatus);
+        this.safeUpdateText('source-syslog', systemStatus);
         
         // Atualiza contadores
         if (stats.sources) {
             const totalLogs = Object.values(stats.sources).reduce((a, b) => a + b, 0);
-            document.getElementById('logs-count').textContent = totalLogs.toLocaleString();
+            this.safeUpdateText('logs-count', totalLogs.toLocaleString());
             this.logCount = totalLogs;
         }
     }
@@ -123,32 +150,80 @@ class AgenteIA {
     
     initializeMetrics() {
         // Inicializa métricas com valores padrão
-        document.getElementById('anomalies-count').textContent = '0';
-        document.getElementById('threat-level').textContent = 'LOW';
-        document.getElementById('critical-alerts').textContent = '0';
-        document.getElementById('siem-events').textContent = 'Aguardando...';
-        document.getElementById('siem-status').textContent = 'Preparando...';
+        this.safeUpdateText('anomalies-count', '0');
+        this.safeUpdateText('threat-level', 'LOW');
+        this.safeUpdateText('critical-alerts', '0');
+        this.safeUpdateText('siem-events', 'Aguardando...');
+        this.safeUpdateText('siem-status', 'Preparando...');
     }
     
     updateMetrics() {
-        // Simula métricas dinâmicas (será substituído por dados reais do backend)
-        const logsPerMinute = Math.floor(Math.random() * 20) + 30;
-        document.getElementById('logs-per-minute').textContent = logsPerMinute;
-        
-        // Atualiza CPU e RAM simulados
-        const cpuUsage = Math.floor(Math.random() * 15) + 8;
-        const ramUsage = Math.floor(Math.random() * 50) + 200;
-        document.getElementById('cpu-usage').textContent = `${cpuUsage}%`;
-        document.getElementById('ram-usage').textContent = `${ramUsage}MB`;
-        
-        // Atualiza cor baseado no valor
-        const cpuElement = document.getElementById('cpu-usage');
-        if (cpuUsage > 80) {
-            cpuElement.style.color = 'var(--status-error)';
-        } else if (cpuUsage > 60) {
-            cpuElement.style.color = 'var(--status-warning)';
-        } else {
-            cpuElement.style.color = 'var(--status-success)';
+        // Obtiene métricas reales del sistema via backend
+        this.getRealSystemMetrics();
+    }
+    
+    async getRealSystemMetrics() {
+        try {
+            const response = await fetch(`${this.apiUrl}/api/status`);
+            if (response.ok) {
+                const data = await response.json();
+                
+                // Actualiza métricas reales del sistema
+                if (data.collection_stats) {
+                    const stats = data.collection_stats;
+                    
+                    // Logs por minuto basado en datos reales
+                    const totalLogs = stats.total_logs || 0;
+                    const logsPerMinute = Math.max(1, Math.floor(totalLogs / 60)); // Estimación basada en total
+                    document.getElementById('logs-per-minute').textContent = logsPerMinute;
+                }
+                
+                // CPU y RAM reales del sistema (si están disponibles)
+                this.updateRealSystemResources();
+            }
+        } catch (error) {
+            console.error('Error obteniendo métricas reales:', error);
+            // Fallback: mostrar valores estáticos en lugar de aleatorios
+            document.getElementById('logs-per-minute').textContent = '--';
+            document.getElementById('cpu-usage').textContent = '--';
+            document.getElementById('ram-usage').textContent = '--';
+        }
+    }
+    
+    async updateRealSystemResources() {
+        try {
+            // Intenta obtener recursos reales del sistema
+            const response = await fetch(`${this.apiUrl}/api/system-resources`);
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.cpu_usage !== undefined) {
+                    const cpuUsage = Math.round(data.cpu_usage);
+                    document.getElementById('cpu-usage').textContent = `${cpuUsage}%`;
+                    
+                    // Actualiza color basado en valor real
+                    const cpuElement = document.getElementById('cpu-usage');
+                    if (cpuUsage > 80) {
+                        cpuElement.style.color = 'var(--status-error)';
+                    } else if (cpuUsage > 60) {
+                        cpuElement.style.color = 'var(--status-warning)';
+                    } else {
+                        cpuElement.style.color = 'var(--status-success)';
+                    }
+                }
+                
+                if (data.memory_usage !== undefined) {
+                    document.getElementById('ram-usage').textContent = `${Math.round(data.memory_usage)}MB`;
+                }
+            } else {
+                // Si no hay endpoint, mostrar valores estáticos
+                document.getElementById('cpu-usage').textContent = 'N/A';
+                document.getElementById('ram-usage').textContent = 'N/A';
+            }
+        } catch (error) {
+            // Error silencioso - mostrar N/A en lugar de datos falsos
+            document.getElementById('cpu-usage').textContent = 'N/A';
+            document.getElementById('ram-usage').textContent = 'N/A';
         }
     }
     
@@ -546,58 +621,8 @@ async function executeManualAction(actionType, target) {
     }
 }
 
-async function startMonitoring() {
-    console.log('▶️ Iniciando monitoramento...');
-    agente.isMonitoring = true;
-    
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        '▶️ Monitoramento de logs iniciado pelo usuário'
-    );
-    
-    agente.addActionEntry('Sistema de monitoramento ativado');
-    agente.showNotification('Monitoramento iniciado com sucesso!', 'success');
-    
-    // Simula coleta de logs
-    setTimeout(() => {
-        const anomaliesCount = Math.floor(Math.random() * 5);
-        const logsCount = Math.floor(Math.random() * 1000) + 500;
-        
-        document.getElementById('anomalies-count').textContent = anomaliesCount;
-        document.getElementById('logs-count').textContent = logsCount.toLocaleString();
-        
-        if (anomaliesCount > 0) {
-            agente.addLogEntry(
-                new Date().toLocaleString('pt-BR'),
-                'WARNING',
-                `🔍 ${anomaliesCount} anomalia(s) detectada(s) - Investigando...`
-            );
-            
-            agente.addActionEntry(`${anomaliesCount} anomalia(s) detectada(s) - Análise iniciada`, 'warning');
-        }
-        
-        agente.addLogEntry(
-            new Date().toLocaleString('pt-BR'),
-            'SUCCESS',
-            `📊 ${logsCount} logs processados com sucesso`
-        );
-    }, 2000);
-}
-
-async function stopMonitoring() {
-    console.log('⏹️ Parando monitoramento...');
-    agente.isMonitoring = false;
-    
-    agente.addLogEntry(
-        new Date().toLocaleString('pt-BR'),
-        'INFO',
-        '⏹️ Monitoramento pausado pelo usuário'
-    );
-    
-    agente.addActionEntry('Sistema de monitoramento pausado');
-    agente.showNotification('Monitoramento pausado', 'warning');
-}
+// Las funciones startMonitoring y stopMonitoring simuladas han sido eliminadas
+// Ahora solo se usan las funciones reales: startRealTimeMonitoring y stopRealTimeMonitoring
 
 async function testEmail() {
     console.log('📧 Testando sistema de alertas...');
